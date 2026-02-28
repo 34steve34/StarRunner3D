@@ -1,7 +1,7 @@
 {
-  "name": "Star Stream 3D",
-  "short_name": "StarStream 3D",
-  "description": "Space shooter game with gyroscope controls",
+  "name": "Star Runner 3D",
+  "short_name": "Star Runner",
+  "description": "3D obstacle course racing game with gyroscope controls",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
@@ -34,5 +34,4 @@
       "purpose": "maskable"
     }
   ]
-
 }

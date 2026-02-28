@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.2</title>
+    <title>Star Runner 3D - v1.0.3</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.2</div>
+    <div id="version">v1.0.3</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -774,29 +774,6 @@
                     console.log('Removed nearby debris after respawn');
                 }
             });
-            
-            setTimeout(() => {
-                // Respawn at a safe distance from debris
-                let safePos = new THREE.Vector3(0, 0, -100);
-                ship.position.copy(safePos);
-                ship.rotation.set(0, 0, 0);
-                ship.rotateY(Math.PI); // Model faces backward, rotate it
-                ship.visible = true;
-                isRespawning = false;
-                triggerBloom();
-            }, CONFIG.RESPAWN_TIME);
-        }
-            isRespawning = true;
-            
-            // Shake and spin effect
-            shakeDuration = 1.0;
-            playExplosionSound(50);
-            createExplosion(ship.position);
-            
-            // Hide ship temporarily
-            ship.visible = false;
-            thrustValue = 0;
-            velocityVec.set(0, 0, 0);
             
             setTimeout(() => {
                 // Respawn at a safe distance from debris
