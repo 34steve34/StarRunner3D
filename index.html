@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.0</title>
+    <title>Star Runner 3D - v1.0.1</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.0</div>
+    <div id="version">v1.0.1</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -482,15 +482,21 @@
 
         function fireLaser() {
             if (!ship || !gameActive) return;
+            console.log('Firing laser!');
             const spawnPos = new THREE.Vector3(0, 0, 15).applyQuaternion(ship.quaternion).add(ship.position);
             const forwardDir = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion).normalize();
             const finalVelocity = new THREE.Vector3().add(forwardDir.multiplyScalar(CONFIG.BULLET_SPEED)).add(gunTipVelocity); 
             
             const p = new THREE.Group();
-            p.add(new THREE.Mesh(new THREE.SphereGeometry(2, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ffff })), new THREE.PointLight(0x00ffff, 4500, 200));
+            p.add(
+                new THREE.Mesh(new THREE.SphereGeometry(2, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ffff })), 
+                new THREE.PointLight(0x00ffff, 4500, 200)
+            );
             p.position.copy(spawnPos); 
             p.userData = { velocity: finalVelocity, origin: spawnPos.clone(), spawn: Date.now() };
-            scene.add(p); bullets.push(p); activeScopeBullet = p;
+            scene.add(p); 
+            bullets.push(p);
+            console.log('Bullet created at:', spawnPos);
         }
 
         function spawnLevel() {
