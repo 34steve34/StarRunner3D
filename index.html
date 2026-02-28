@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.7</title>
+    <title>Star Runner 3D - v1.0.8</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.7</div>
+    <div id="version">v1.0.8</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -527,16 +527,20 @@
             gatePositions.push(currentPos.clone());
             
             for (let i = 1; i < levelData.gates; i++) {
-                // Random direction within 45 degree cone
-                const theta = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION; // horizontal angle
-                const phi = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION;   // vertical angle
+                // Random direction within 45 degree cone - make it MUCH more pronounced
+                const theta = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION * 2; // horizontal angle: -45 to +45 degrees
+                const phi = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION * 2;   // vertical angle: -45 to +45 degrees
                 
-                // Calculate offset from straight line
-                const offsetX = Math.sin(theta) * GATE_SPACING;
-                const offsetY = Math.sin(phi) * GATE_SPACING;
-                const offsetZ = -Math.cos(theta) * Math.cos(phi) * GATE_SPACING;
+                // Create direction vector with strong angular deviation
+                const forward = Math.cos(theta) * Math.cos(phi);
+                const sideways = Math.sin(theta);
+                const updown = Math.sin(phi);
                 
-                currentPos = currentPos.clone().add(new THREE.Vector3(offsetX, offsetY, offsetZ));
+                // Normalize and scale by gate spacing
+                const dir = new THREE.Vector3(sideways, updown, -forward).normalize();
+                const offset = dir.multiplyScalar(GATE_SPACING);
+                
+                currentPos = currentPos.clone().add(offset);
                 gatePositions.push(currentPos);
             }
 
@@ -951,6 +955,10 @@
             if (isRespawning) return;
             isRespawning = true;
             
+            // Save current position for respawn
+            const respawnPos = ship.position.clone();
+            const respawnRot = ship.rotation.clone();
+            
             // Shake and spin effect
             shakeDuration = 1.0;
             playExplosionSound(50);
@@ -963,7 +971,7 @@
             
             // CLEAR NEARBY DEBRIS to give breathing room
             debris.forEach((d, index) => {
-                const dist = ship.position.distanceTo(d.position);
+                const dist = respawnPos.distanceTo(d.position);
                 if (dist < 500) { // Remove debris within 500 units
                     scene.remove(d);
                     debris.splice(index, 1);
@@ -972,11 +980,9 @@
             });
             
             setTimeout(() => {
-                // Respawn at a safe distance from debris
-                let safePos = new THREE.Vector3(0, 0, -100);
-                ship.position.copy(safePos);
-                ship.rotation.set(0, 0, 0);
-                ship.rotateY(Math.PI); // Model faces backward, rotate it
+                // Respawn at the same position where hit
+                ship.position.copy(respawnPos);
+                ship.rotation.copy(respawnRot);
                 ship.visible = true;
                 isRespawning = false;
                 triggerBloom();
