@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.3</title>
+    <title>Star Runner 3D - v1.0.4</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.3</div>
+    <div id="version">v1.0.4</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -1136,6 +1136,9 @@
             startY = e.touches[0].clientY;
             startBottom = parseInt(thrustBtn.style.bottom || '52');
             thrustBtn.classList.add('active');
+            
+            // Give minimum thrust immediately when touched (even at zero position)
+            thrustValue = Math.max(thrustValue, 0.3); // Minimum 30% thrust on tap
         }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
@@ -1148,8 +1151,8 @@
                         const newBottom = Math.max(52, Math.min(156, startBottom + deltaY)); // 52 to 156 (104px range)
                         thrustBtn.style.bottom = newBottom + 'px';
                         
-                        // Calculate thrust value (0 to 1)
-                        thrustValue = (newBottom - 52) / 104;
+                        // Calculate thrust value (0.3 to 1.0) - minimum 30% when touching
+                        thrustValue = Math.max(0.3, (newBottom - 52) / 104);
                         break;
                     }
                 }
