@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.8</title>
+    <title>Star Runner 3D - v1.0.9</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: #0f0; touch-action: none; }
-        #ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 90%; max-width: 600px; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 15px; }
 		#zeroBtn { position: absolute; top: 10px; left: 10px; padding: 10px; background: #222; color: #0f0; border: 1px solid #0f0; z-index: 30; font-size: 10px; cursor: pointer; border-radius: 5px; }
         #version { position: absolute; top: 10px; right: 10px; color: rgba(255, 120, 0, 0.7); font-size: 10px; z-index: 30; }
         #thrustSliderTrack { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 208px; background: rgba(255, 120, 0, 0.15); border: 2px solid rgba(255, 120, 0, 0.4); border-radius: 52px; z-index: 19; display: none; pointer-events: none; }
@@ -34,6 +34,9 @@
             justify-content: center;
             align-items: flex-start;
             gap: 18px;
+            flex-wrap: wrap;
+            max-height: 70vh;
+            overflow-y: auto;
         }
         #difficultyContainer {
             background: rgba(0, 0, 0, 0.85);
@@ -102,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.8</div>
+    <div id="version">v1.0.9</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -173,7 +176,7 @@
 
         const CONFIG = {
             MAX_VELOCITY: 1.5, DRIFT_INERTIA: 0.95, ACCEL_FORCE: 0.08, BULLET_SPEED: 9,
-            PITCH_SENSITIVITY: 0.02, YAW_SENSITIVITY: 0.018, EXPONENT: 1.6, DEADZONE: 1.2,
+            PITCH_SENSITIVITY: 0.02, YAW_SENSITIVITY: 0.018, EXPONENT: 2.0, DEADZONE: 1.2,
             SECTOR_SIZE: 3500, LOCAL_STAR_COUNT: 800, LOCAL_STAR_RANGE: 1800,
             CAMERA_RADIUS: 80, BASE_FOV: 75, MAX_FOV_BOOST: 18,
             FOV_SMOOTHING: 0.03, EXPLOSION_SHARDS: 20, SHAKE_INTENSITY: 18,
