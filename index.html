@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.1</title>
+    <title>Star Runner 3D - v1.0.2</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.1</div>
+    <div id="version">v1.0.2</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -592,7 +592,7 @@
                 console.log('Target', i, 'spawned at:', t.position);
             }
 
-            // Spawn Space Debris - spawn them IN FRONT of the ship, not behind!
+            // Spawn Space Debris - spawn them IN FRONT of the ship, FARTHER away
             for (let i = 0; i < levelData.debris; i++) {
                 const size = 15 + Math.random() * 25;
                 
@@ -615,7 +615,7 @@
                 const debrisLight = new THREE.PointLight(debrisColor, 800, 200);
                 d.add(debrisLight);
 
-                // Spawn debris in a cone IN FRONT of the ship
+                // Spawn debris in a cone IN FRONT of the ship, MUCH FARTHER
                 let dir = new THREE.Vector3(
                     (Math.random() - 0.5) * 0.8, // Less spread horizontally
                     (Math.random() - 0.5) * 0.8, // Less spread vertically
@@ -628,10 +628,10 @@
                     dir.applyQuaternion(ship.quaternion);
                 }
 
-                const distance = 400 + Math.random() * 600; // Spawn closer
+                const distance = 800 + Math.random() * 800; // MUCH farther: 800-1600 units away
                 d.position.copy(center).add(dir.multiplyScalar(distance));
                 
-                // Debris seeks ship initially
+                // Debris seeks ship initially but SLOWER
                 d.userData = { 
                     velocity: new THREE.Vector3(),
                     seeking: true,
@@ -733,17 +733,17 @@
                 d.rotation.y += d.userData.rotationSpeed.y;
                 d.rotation.z += d.userData.rotationSpeed.z;
                 
-                // Seeking behavior
+                // Seeking behavior - SLOWER and stops farther away
                 if (d.userData.seeking) {
                     const toShip = new THREE.Vector3().subVectors(ship.position, d.position);
                     const dist = toShip.length();
                     
-                    // Stop seeking when close enough
-                    if (dist < 200) {
+                    // Stop seeking when farther away (300 instead of 200)
+                    if (dist < 300) {
                         d.userData.seeking = false;
                     } else {
-                        toShip.normalize().multiplyScalar(CONFIG.DEBRIS_SPEED);
-                        d.userData.velocity.lerp(toShip, 0.02);
+                        toShip.normalize().multiplyScalar(CONFIG.DEBRIS_SPEED * 0.5); // HALF speed
+                        d.userData.velocity.lerp(toShip, 0.01); // Slower acceleration
                     }
                 }
                 
@@ -753,6 +753,39 @@
 
         function respawnShip() {
             if (isRespawning) return;
+            isRespawning = true;
+            
+            // Shake and spin effect
+            shakeDuration = 1.0;
+            playExplosionSound(50);
+            createExplosion(ship.position);
+            
+            // Hide ship temporarily
+            ship.visible = false;
+            thrustValue = 0;
+            velocityVec.set(0, 0, 0);
+            
+            // CLEAR NEARBY DEBRIS to give breathing room
+            debris.forEach((d, index) => {
+                const dist = ship.position.distanceTo(d.position);
+                if (dist < 500) { // Remove debris within 500 units
+                    scene.remove(d);
+                    debris.splice(index, 1);
+                    console.log('Removed nearby debris after respawn');
+                }
+            });
+            
+            setTimeout(() => {
+                // Respawn at a safe distance from debris
+                let safePos = new THREE.Vector3(0, 0, -100);
+                ship.position.copy(safePos);
+                ship.rotation.set(0, 0, 0);
+                ship.rotateY(Math.PI); // Model faces backward, rotate it
+                ship.visible = true;
+                isRespawning = false;
+                triggerBloom();
+            }, CONFIG.RESPAWN_TIME);
+        }
             isRespawning = true;
             
             // Shake and spin effect
