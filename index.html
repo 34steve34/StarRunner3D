@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.4</title>
+    <title>Star Runner 3D - v1.0.5</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.4</div>
+    <div id="version">v1.0.5</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -558,16 +558,16 @@
                 console.log('Gate', i, 'spawned at:', gate.position);
             }
 
-            // Spawn Targets (red spheres) - make them MUCH brighter
+            // Spawn Targets (red spheres) - make them MUCH brighter and DIFFERENT shape
             for (let i = 0; i < levelData.targets; i++) {
                 const t = new THREE.Mesh(
-                    new THREE.IcosahedronGeometry(15, 0),
+                    new THREE.SphereGeometry(18, 16, 16), // SMOOTH SPHERE (not spiky icosahedron)
                     new THREE.MeshStandardMaterial({ 
                         color: 0xff0000, 
                         emissive: 0xff0000, 
-                        emissiveIntensity: 0.8,
-                        metalness: 0.5,
-                        roughness: 0.5
+                        emissiveIntensity: 1.0, // BRIGHTER
+                        metalness: 0.3,
+                        roughness: 0.7
                     })
                 );
 
@@ -582,8 +582,8 @@
                 const distance = 300 + Math.random() * 500;
                 t.position.copy(center).add(dir.multiplyScalar(distance));
 
-                // Add point light to target
-                const targetLight = new THREE.PointLight(0xff0000, 300, 100);
+                // Add BRIGHT RED point light to target
+                const targetLight = new THREE.PointLight(0xff0000, 500, 150);
                 t.add(targetLight);
 
                 t.userData = { hit: false, type: 'target' };
@@ -596,8 +596,8 @@
             for (let i = 0; i < levelData.debris; i++) {
                 const size = 15 + Math.random() * 25;
                 
-                // Random bright warning colors
-                const colors = [0xff0000, 0xff6600, 0xffff00, 0xff00ff];
+                // Random bright warning colors (NO PURE RED - that's for targets!)
+                const colors = [0xff6600, 0xffff00, 0xff00ff, 0x00ffff]; // Orange, Yellow, Magenta, Cyan
                 const debrisColor = colors[Math.floor(Math.random() * colors.length)];
                 
                 const d = new THREE.Mesh(
