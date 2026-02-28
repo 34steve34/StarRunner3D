@@ -1,8 +1,8 @@
-// Star Runner 3D PWA - VERSION 1.0.6 - 2026-02-27
+// Star Runner 3D PWA - VERSION 1.0.7 - 2026-02-27
 // Converted from Star Stream 3D to obstacle course racing game
 // Features: Gates, Targets, Space Debris, Thrust Slider, Level System
 
-const CACHE_NAME = 'star-runner-3D-v1.0.6';
+const CACHE_NAME = 'star-runner-3D-v1.0.7';
 const urlsToCache = [
   './',
   './index.html',

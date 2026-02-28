@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.6</title>
+    <title>Star Runner 3D - v1.0.7</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -11,8 +11,8 @@
         #ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 15px; }
 		#zeroBtn { position: absolute; top: 10px; left: 10px; padding: 10px; background: #222; color: #0f0; border: 1px solid #0f0; z-index: 30; font-size: 10px; cursor: pointer; border-radius: 5px; }
         #version { position: absolute; top: 10px; right: 10px; color: rgba(255, 120, 0, 0.7); font-size: 10px; z-index: 30; }
-        #thrustSliderTrack { position: absolute; bottom: 52px; right: 20px; width: 104px; height: 208px; background: rgba(255, 120, 0, 0.15); border: 2px solid rgba(255, 120, 0, 0.4); border-radius: 52px; z-index: 19; display: none; pointer-events: none; }
-        #thrustBtn { position: absolute; bottom: 52px; right: 20px; width: 104px; height: 104px; background: rgba(255, 120, 0, 0.3); color: white; border: 2px solid #ff7800; border-radius: 50%; cursor: pointer; font-size: 14px; z-index: 20; display: none; -webkit-user-select: none; user-select: none; touch-action: none; }
+        #thrustSliderTrack { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 208px; background: rgba(255, 120, 0, 0.15); border: 2px solid rgba(255, 120, 0, 0.4); border-radius: 52px; z-index: 19; display: none; pointer-events: none; }
+        #thrustBtn { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 104px; background: rgba(255, 120, 0, 0.3); color: white; border: 2px solid #ff7800; border-radius: 50%; cursor: pointer; font-size: 14px; z-index: 20; display: none; -webkit-user-select: none; user-select: none; touch-action: none; }
         #thrustBtn.active { background: rgba(255, 120, 0, 0.7); }
         #hud { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); text-align: center; color: #0ff; font-size: 16px; display: none; width: 100%; pointer-events: none; }
         #timer { color: #00ff00; font-weight: bold; font-size: 24px; }
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.6</div>
+    <div id="version">v1.0.7</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -514,58 +514,73 @@
             
             // Cylindrical course configuration
             const CORRIDOR_RADIUS = 200;
-            const GATE_SPACING = 400;
+            const GATE_SPACING = 1800; // ~6 seconds at full speed (assuming ~300 units/sec)
             const FIRST_GATE_DISTANCE = 500;
-            const DEBRIS_COUNT = 12; // Override level config
+            const MAX_ANGLE_DEVIATION = Math.PI / 4; // 45 degrees
+            const DEBRIS_COUNT = 12;
             
             console.log('Spawning cylindrical course for level', currentLevel);
 
-            // Generate gate positions along straight path
+            // Generate gate positions with random directional offsets
             const gatePositions = [];
-            for (let i = 0; i < levelData.gates; i++) {
-                const z = -(FIRST_GATE_DISTANCE + i * GATE_SPACING);
-                gatePositions.push(new THREE.Vector3(0, 0, z));
+            let currentPos = new THREE.Vector3(0, 0, -FIRST_GATE_DISTANCE);
+            gatePositions.push(currentPos.clone());
+            
+            for (let i = 1; i < levelData.gates; i++) {
+                // Random direction within 45 degree cone
+                const theta = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION; // horizontal angle
+                const phi = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION;   // vertical angle
+                
+                // Calculate offset from straight line
+                const offsetX = Math.sin(theta) * GATE_SPACING;
+                const offsetY = Math.sin(phi) * GATE_SPACING;
+                const offsetZ = -Math.cos(theta) * Math.cos(phi) * GATE_SPACING;
+                
+                currentPos = currentPos.clone().add(new THREE.Vector3(offsetX, offsetY, offsetZ));
+                gatePositions.push(currentPos);
             }
 
-            // Spawn Gates (red rings) along the path
-            for (let i = 0; i < levelData.gates; i++) {
-                const gate = new THREE.Group();
-                
-                // Create ring geometry with emissive material for visibility
-                const ringGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
-                const ringMat = new THREE.MeshStandardMaterial({ 
-                    color: 0xff0000, 
-                    emissive: 0xff0000, 
-                    emissiveIntensity: 0.8,
-                    metalness: 0.3,
-                    roughness: 0.7
-                });
-                const ring = new THREE.Mesh(ringGeo, ringMat);
-                gate.add(ring);
-                
-                // Add a point light to make it glow
-                const gateLight = new THREE.PointLight(0xff0000, 500, 150);
-                gate.add(gateLight);
-                
-                // Position gate along path
-                gate.position.copy(gatePositions[i]);
-                
-                // Orient gate to face next gate (or forward if last gate)
-                if (i < levelData.gates - 1) {
-                    const direction = new THREE.Vector3()
-                        .subVectors(gatePositions[i + 1], gatePositions[i])
-                        .normalize();
-                    gate.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
-                }
-                
-                gate.userData = { passed: false, type: 'gate' };
-                scene.add(gate);
-                gates.push(gate);
-                console.log('Gate', i, 'spawned at:', gate.position);
+            // Spawn only the FIRST gate initially
+            const gate = new THREE.Group();
+            
+            const ringGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
+            const ringMat = new THREE.MeshStandardMaterial({ 
+                color: 0xff0000, 
+                emissive: 0xff0000, 
+                emissiveIntensity: 0.8,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            gate.add(ring);
+            
+            const gateLight = new THREE.PointLight(0xff0000, 500, 150);
+            gate.add(gateLight);
+            
+            gate.position.copy(gatePositions[0]);
+            
+            // Orient first gate toward second gate
+            if (levelData.gates > 1) {
+                const direction = new THREE.Vector3()
+                    .subVectors(gatePositions[1], gatePositions[0])
+                    .normalize();
+                gate.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
             }
+            
+            gate.userData = { 
+                passed: false, 
+                type: 'gate',
+                gateIndex: 0,
+                nextGatePos: levelData.gates > 1 ? gatePositions[1] : null,
+                allGatePositions: gatePositions
+            };
+            scene.add(gate);
+            gates.push(gate);
+            console.log('Gate 0 spawned at:', gate.position);
 
-            // Spawn Targets (red spheres) between gate pairs
-            for (let i = 0; i < levelData.targets; i++) {
+            // Spawn Targets between first two gates only
+            const targetsPerSegment = Math.ceil(levelData.targets / (levelData.gates - 1));
+            for (let i = 0; i < Math.min(targetsPerSegment, levelData.targets); i++) {
                 const t = new THREE.Mesh(
                     new THREE.SphereGeometry(18, 16, 16),
                     new THREE.MeshStandardMaterial({ 
@@ -577,24 +592,20 @@
                     })
                 );
 
-                // Select gate pair for this target
-                const gateIndex = Math.floor(i * (levelData.gates - 1) / levelData.targets);
-                const gate1 = gatePositions[gateIndex];
-                const gate2 = gatePositions[Math.min(gateIndex + 1, levelData.gates - 1)];
+                const gate1 = gatePositions[0];
+                const gate2 = gatePositions[1];
                 
-                // Position between gates at 40-60% along the segment
                 const t_param = 0.4 + Math.random() * 0.2;
-                const z = gate1.z + (gate2.z - gate1.z) * t_param;
+                const pos = gate1.clone().lerp(gate2, t_param);
                 
                 // Add random offset within corridor
                 const angle = Math.random() * Math.PI * 2;
                 const radius = Math.random() * CORRIDOR_RADIUS * 0.7;
-                const x = Math.cos(angle) * radius;
-                const y = Math.sin(angle) * radius;
+                pos.x += Math.cos(angle) * radius;
+                pos.y += Math.sin(angle) * radius;
                 
-                t.position.set(x, y, z);
+                t.position.copy(pos);
 
-                // Add BRIGHT RED point light to target
                 const targetLight = new THREE.PointLight(0xff0000, 500, 150);
                 t.add(targetLight);
 
@@ -604,14 +615,11 @@
                 console.log('Target', i, 'spawned at:', t.position);
             }
 
-            // Spawn Space Debris along the corridor
-            const courseLength = FIRST_GATE_DISTANCE + levelData.gates * GATE_SPACING;
-            
-            for (let i = 0; i < DEBRIS_COUNT; i++) {
+            // Spawn debris in first segment only
+            const debrisPerSegment = Math.ceil(DEBRIS_COUNT / levelData.gates);
+            for (let i = 0; i < debrisPerSegment; i++) {
                 const size = 15 + Math.random() * 25;
-                
-                // Random bright warning colors (NO PURE RED - that's for targets!)
-                const colors = [0xff6600, 0xffff00, 0xff00ff, 0x00ffff]; // Orange, Yellow, Magenta, Cyan
+                const colors = [0xff6600, 0xffff00, 0xff00ff, 0x00ffff];
                 const debrisColor = colors[Math.floor(Math.random() * colors.length)];
                 
                 const d = new THREE.Mesh(
@@ -625,49 +633,22 @@
                     })
                 );
 
-                // Add bright point light to debris
                 const debrisLight = new THREE.PointLight(debrisColor, 800, 200);
                 d.add(debrisLight);
 
-                // Position along corridor with random offset
-                let validPosition = false;
-                let x, y, z;
-                let attempts = 0;
+                // Position between first two gates
+                const gate1 = gatePositions[0];
+                const gate2 = gatePositions[1];
+                const t_param = Math.random();
+                const pos = gate1.clone().lerp(gate2, t_param);
                 
-                while (!validPosition && attempts < 20) {
-                    z = -(FIRST_GATE_DISTANCE * 0.5 + Math.random() * (courseLength + 200));
-                    
-                    const angle = Math.random() * Math.PI * 2;
-                    const radius = CORRIDOR_RADIUS * 0.3 + Math.random() * CORRIDOR_RADIUS * 0.6;
-                    x = Math.cos(angle) * radius;
-                    y = Math.sin(angle) * radius;
-                    
-                    // Check minimum distance from gates and targets
-                    validPosition = true;
-                    const debrisPos = new THREE.Vector3(x, y, z);
-                    
-                    for (let gate of gates) {
-                        if (debrisPos.distanceTo(gate.position) < 80) {
-                            validPosition = false;
-                            break;
-                        }
-                    }
-                    
-                    if (validPosition) {
-                        for (let target of targets) {
-                            if (debrisPos.distanceTo(target.position) < 60) {
-                                validPosition = false;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    attempts++;
-                }
+                const angle = Math.random() * Math.PI * 2;
+                const radius = CORRIDOR_RADIUS * 0.3 + Math.random() * CORRIDOR_RADIUS * 0.6;
+                pos.x += Math.cos(angle) * radius;
+                pos.y += Math.sin(angle) * radius;
                 
-                d.position.set(x, y, z);
+                d.position.copy(pos);
                 
-                // Assign movement mode: 60% stationary, 20% seeking, 20% crossing
                 const rand = Math.random();
                 let movementMode, crossingDir = null, crossingSpeed = 0;
                 
@@ -677,7 +658,6 @@
                     movementMode = 'seeking';
                 } else {
                     movementMode = 'crossing';
-                    // Random perpendicular direction
                     const angle = Math.random() * Math.PI * 2;
                     crossingDir = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
                     crossingSpeed = 0.5 + Math.random() * 1.5;
@@ -699,7 +679,6 @@
                 
                 scene.add(d);
                 debris.push(d);
-                console.log('Debris', i, 'spawned at:', d.position, 'mode:', movementMode);
             }
 
             console.log('Level spawned - Gates:', gates.length, 'Targets:', targets.length, 'Debris:', debris.length);
@@ -762,12 +741,171 @@
                             gate.userData.passed = true;
                             gate.children[0].material.color.setHex(0x00ff00);
                             gate.children[0].material.emissive.setHex(0x00ff00);
+                            
+                            // Spawn next gate if available
+                            spawnNextGate(gate);
+                            
                             checkLevelComplete();
                             updateHUD();
                         }
                     }
                 }
             });
+        }
+        
+        function spawnNextGate(currentGate) {
+            const gateIndex = currentGate.userData.gateIndex;
+            const allPositions = currentGate.userData.allGatePositions;
+            const levelData = LEVELS[currentLevel];
+            
+            if (!allPositions || gateIndex >= allPositions.length - 1) return; // No more gates
+            
+            const nextIndex = gateIndex + 1;
+            const CORRIDOR_RADIUS = 200;
+            const DEBRIS_COUNT = 12;
+            const debrisPerSegment = Math.ceil(DEBRIS_COUNT / levelData.gates);
+            
+            // Spawn next gate
+            const gate = new THREE.Group();
+            
+            const ringGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
+            const ringMat = new THREE.MeshStandardMaterial({ 
+                color: 0xff0000, 
+                emissive: 0xff0000, 
+                emissiveIntensity: 0.8,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            gate.add(ring);
+            
+            const gateLight = new THREE.PointLight(0xff0000, 500, 150);
+            gate.add(gateLight);
+            
+            gate.position.copy(allPositions[nextIndex]);
+            
+            // Orient gate toward next gate (or forward if last)
+            if (nextIndex < allPositions.length - 1) {
+                const direction = new THREE.Vector3()
+                    .subVectors(allPositions[nextIndex + 1], allPositions[nextIndex])
+                    .normalize();
+                gate.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
+            }
+            
+            gate.userData = { 
+                passed: false, 
+                type: 'gate',
+                gateIndex: nextIndex,
+                nextGatePos: nextIndex < allPositions.length - 1 ? allPositions[nextIndex + 1] : null,
+                allGatePositions: allPositions
+            };
+            scene.add(gate);
+            gates.push(gate);
+            console.log('Gate', nextIndex, 'spawned at:', gate.position);
+            
+            // Spawn targets for this segment
+            if (nextIndex < allPositions.length - 1) {
+                const targetsPerSegment = Math.ceil(levelData.targets / (levelData.gates - 1));
+                const targetsSpawned = targets.length;
+                const targetsToSpawn = Math.min(targetsPerSegment, levelData.targets - targetsSpawned);
+                
+                for (let i = 0; i < targetsToSpawn; i++) {
+                    const t = new THREE.Mesh(
+                        new THREE.SphereGeometry(18, 16, 16),
+                        new THREE.MeshStandardMaterial({ 
+                            color: 0xff0000, 
+                            emissive: 0xff0000, 
+                            emissiveIntensity: 1.0,
+                            metalness: 0.3,
+                            roughness: 0.7
+                        })
+                    );
+
+                    const gate1 = allPositions[nextIndex];
+                    const gate2 = allPositions[nextIndex + 1];
+                    
+                    const t_param = 0.4 + Math.random() * 0.2;
+                    const pos = gate1.clone().lerp(gate2, t_param);
+                    
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = Math.random() * CORRIDOR_RADIUS * 0.7;
+                    pos.x += Math.cos(angle) * radius;
+                    pos.y += Math.sin(angle) * radius;
+                    
+                    t.position.copy(pos);
+
+                    const targetLight = new THREE.PointLight(0xff0000, 500, 150);
+                    t.add(targetLight);
+
+                    t.userData = { hit: false, type: 'target' };
+                    scene.add(t);
+                    targets.push(t);
+                }
+            }
+            
+            // Spawn debris for this segment
+            for (let i = 0; i < debrisPerSegment; i++) {
+                const size = 15 + Math.random() * 25;
+                const colors = [0xff6600, 0xffff00, 0xff00ff, 0x00ffff];
+                const debrisColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                const d = new THREE.Mesh(
+                    new THREE.DodecahedronGeometry(size, 0),
+                    new THREE.MeshStandardMaterial({ 
+                        color: debrisColor, 
+                        emissive: debrisColor,
+                        emissiveIntensity: 0.9,
+                        metalness: 0.8, 
+                        roughness: 0.2 
+                    })
+                );
+
+                const debrisLight = new THREE.PointLight(debrisColor, 800, 200);
+                d.add(debrisLight);
+
+                const gate1 = allPositions[nextIndex];
+                const gate2 = nextIndex < allPositions.length - 1 ? allPositions[nextIndex + 1] : gate1.clone().add(new THREE.Vector3(0, 0, -500));
+                const t_param = Math.random();
+                const pos = gate1.clone().lerp(gate2, t_param);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const radius = CORRIDOR_RADIUS * 0.3 + Math.random() * CORRIDOR_RADIUS * 0.6;
+                pos.x += Math.cos(angle) * radius;
+                pos.y += Math.sin(angle) * radius;
+                
+                d.position.copy(pos);
+                
+                const rand = Math.random();
+                let movementMode, crossingDir = null, crossingSpeed = 0;
+                
+                if (rand < 0.6) {
+                    movementMode = 'stationary';
+                } else if (rand < 0.8) {
+                    movementMode = 'seeking';
+                } else {
+                    movementMode = 'crossing';
+                    const angle = Math.random() * Math.PI * 2;
+                    crossingDir = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
+                    crossingSpeed = 0.5 + Math.random() * 1.5;
+                }
+                
+                d.userData = { 
+                    velocity: new THREE.Vector3(),
+                    seeking: movementMode === 'seeking',
+                    movementMode: movementMode,
+                    crossingDirection: crossingDir,
+                    crossingSpeed: crossingSpeed,
+                    rotationSpeed: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.05,
+                        (Math.random() - 0.5) * 0.05,
+                        (Math.random() - 0.5) * 0.05
+                    ),
+                    type: 'debris'
+                };
+                
+                scene.add(d);
+                debris.push(d);
+            }
         }
 
         function checkDebrisCollision() {
