@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.0.5</title>
+    <title>Star Runner 3D - v1.0.6</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -102,7 +102,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.0.5</div>
+    <div id="version">v1.0.6</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -511,13 +511,23 @@
             triggerBloom(); // Big Bang effect!
             
             const levelData = LEVELS[currentLevel];
-            const center = ship ? ship.position.clone() : new THREE.Vector3(0, 0, -100);
-            console.log('Spawning level', currentLevel, 'at center:', center);
-            const shipForward = ship
-                ? new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion).normalize()
-                : new THREE.Vector3(0, 0, 1);
+            
+            // Cylindrical course configuration
+            const CORRIDOR_RADIUS = 200;
+            const GATE_SPACING = 400;
+            const FIRST_GATE_DISTANCE = 500;
+            const DEBRIS_COUNT = 12; // Override level config
+            
+            console.log('Spawning cylindrical course for level', currentLevel);
 
-            // Spawn Gates (red rings)
+            // Generate gate positions along straight path
+            const gatePositions = [];
+            for (let i = 0; i < levelData.gates; i++) {
+                const z = -(FIRST_GATE_DISTANCE + i * GATE_SPACING);
+                gatePositions.push(new THREE.Vector3(0, 0, z));
+            }
+
+            // Spawn Gates (red rings) along the path
             for (let i = 0; i < levelData.gates; i++) {
                 const gate = new THREE.Group();
                 
@@ -537,20 +547,16 @@
                 const gateLight = new THREE.PointLight(0xff0000, 500, 150);
                 gate.add(gateLight);
                 
-                // Random position in sphere around ship
-                let dir = new THREE.Vector3(
-                    Math.random() * 2 - 1,
-                    Math.random() * 2 - 1,
-                    Math.random() * 2 - 1
-                );
-                if (dir.lengthSq() === 0) dir.set(0, 0, 1);
-                dir.normalize();
+                // Position gate along path
+                gate.position.copy(gatePositions[i]);
                 
-                const distance = 400 + Math.random() * 600;
-                gate.position.copy(center).add(dir.multiplyScalar(distance));
-                
-                // Orient gate to face ship
-                gate.lookAt(center);
+                // Orient gate to face next gate (or forward if last gate)
+                if (i < levelData.gates - 1) {
+                    const direction = new THREE.Vector3()
+                        .subVectors(gatePositions[i + 1], gatePositions[i])
+                        .normalize();
+                    gate.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
+                }
                 
                 gate.userData = { passed: false, type: 'gate' };
                 scene.add(gate);
@@ -558,29 +564,35 @@
                 console.log('Gate', i, 'spawned at:', gate.position);
             }
 
-            // Spawn Targets (red spheres) - make them MUCH brighter and DIFFERENT shape
+            // Spawn Targets (red spheres) between gate pairs
             for (let i = 0; i < levelData.targets; i++) {
                 const t = new THREE.Mesh(
-                    new THREE.SphereGeometry(18, 16, 16), // SMOOTH SPHERE (not spiky icosahedron)
+                    new THREE.SphereGeometry(18, 16, 16),
                     new THREE.MeshStandardMaterial({ 
                         color: 0xff0000, 
                         emissive: 0xff0000, 
-                        emissiveIntensity: 1.0, // BRIGHTER
+                        emissiveIntensity: 1.0,
                         metalness: 0.3,
                         roughness: 0.7
                     })
                 );
 
-                let dir = new THREE.Vector3(
-                    Math.random() * 2 - 1,
-                    Math.random() * 2 - 1,
-                    Math.random() * 2 - 1
-                );
-                if (dir.lengthSq() === 0) dir.set(0, 0, 1);
-                dir.normalize();
-
-                const distance = 300 + Math.random() * 500;
-                t.position.copy(center).add(dir.multiplyScalar(distance));
+                // Select gate pair for this target
+                const gateIndex = Math.floor(i * (levelData.gates - 1) / levelData.targets);
+                const gate1 = gatePositions[gateIndex];
+                const gate2 = gatePositions[Math.min(gateIndex + 1, levelData.gates - 1)];
+                
+                // Position between gates at 40-60% along the segment
+                const t_param = 0.4 + Math.random() * 0.2;
+                const z = gate1.z + (gate2.z - gate1.z) * t_param;
+                
+                // Add random offset within corridor
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * CORRIDOR_RADIUS * 0.7;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                
+                t.position.set(x, y, z);
 
                 // Add BRIGHT RED point light to target
                 const targetLight = new THREE.PointLight(0xff0000, 500, 150);
@@ -592,8 +604,10 @@
                 console.log('Target', i, 'spawned at:', t.position);
             }
 
-            // Spawn Space Debris - spawn them IN FRONT of the ship, FARTHER away
-            for (let i = 0; i < levelData.debris; i++) {
+            // Spawn Space Debris along the corridor
+            const courseLength = FIRST_GATE_DISTANCE + levelData.gates * GATE_SPACING;
+            
+            for (let i = 0; i < DEBRIS_COUNT; i++) {
                 const size = 15 + Math.random() * 25;
                 
                 // Random bright warning colors (NO PURE RED - that's for targets!)
@@ -615,26 +629,66 @@
                 const debrisLight = new THREE.PointLight(debrisColor, 800, 200);
                 d.add(debrisLight);
 
-                // Spawn debris in a cone IN FRONT of the ship, MUCH FARTHER
-                let dir = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.8, // Less spread horizontally
-                    (Math.random() - 0.5) * 0.8, // Less spread vertically
-                    1 // Always forward
-                );
-                dir.normalize();
+                // Position along corridor with random offset
+                let validPosition = false;
+                let x, y, z;
+                let attempts = 0;
                 
-                // Apply ship's forward direction if ship exists
-                if (ship) {
-                    dir.applyQuaternion(ship.quaternion);
+                while (!validPosition && attempts < 20) {
+                    z = -(FIRST_GATE_DISTANCE * 0.5 + Math.random() * (courseLength + 200));
+                    
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = CORRIDOR_RADIUS * 0.3 + Math.random() * CORRIDOR_RADIUS * 0.6;
+                    x = Math.cos(angle) * radius;
+                    y = Math.sin(angle) * radius;
+                    
+                    // Check minimum distance from gates and targets
+                    validPosition = true;
+                    const debrisPos = new THREE.Vector3(x, y, z);
+                    
+                    for (let gate of gates) {
+                        if (debrisPos.distanceTo(gate.position) < 80) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    if (validPosition) {
+                        for (let target of targets) {
+                            if (debrisPos.distanceTo(target.position) < 60) {
+                                validPosition = false;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    attempts++;
                 }
-
-                const distance = 800 + Math.random() * 800; // MUCH farther: 800-1600 units away
-                d.position.copy(center).add(dir.multiplyScalar(distance));
                 
-                // Debris seeks ship initially but SLOWER
+                d.position.set(x, y, z);
+                
+                // Assign movement mode: 60% stationary, 20% seeking, 20% crossing
+                const rand = Math.random();
+                let movementMode, crossingDir = null, crossingSpeed = 0;
+                
+                if (rand < 0.6) {
+                    movementMode = 'stationary';
+                } else if (rand < 0.8) {
+                    movementMode = 'seeking';
+                } else {
+                    movementMode = 'crossing';
+                    // Random perpendicular direction
+                    const angle = Math.random() * Math.PI * 2;
+                    crossingDir = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
+                    crossingSpeed = 0.5 + Math.random() * 1.5;
+                }
+                
                 d.userData = { 
                     velocity: new THREE.Vector3(),
-                    seeking: true,
+                    seeking: movementMode === 'seeking',
+                    movementMode: movementMode,
+                    crossingDirection: crossingDir,
+                    crossingSpeed: crossingSpeed,
                     rotationSpeed: new THREE.Vector3(
                         (Math.random() - 0.5) * 0.05,
                         (Math.random() - 0.5) * 0.05,
@@ -645,7 +699,7 @@
                 
                 scene.add(d);
                 debris.push(d);
-                console.log('Debris', i, 'spawned at:', d.position, 'color:', debrisColor.toString(16));
+                console.log('Debris', i, 'spawned at:', d.position, 'mode:', movementMode);
             }
 
             console.log('Level spawned - Gates:', gates.length, 'Targets:', targets.length, 'Debris:', debris.length);
@@ -733,19 +787,23 @@
                 d.rotation.y += d.userData.rotationSpeed.y;
                 d.rotation.z += d.userData.rotationSpeed.z;
                 
-                // Seeking behavior - SLOWER and stops farther away
-                if (d.userData.seeking) {
+                // Handle different movement modes
+                if (d.userData.movementMode === 'seeking' && d.userData.seeking) {
                     const toShip = new THREE.Vector3().subVectors(ship.position, d.position);
                     const dist = toShip.length();
                     
-                    // Stop seeking when farther away (300 instead of 200)
+                    // Stop seeking when closer than 300 units
                     if (dist < 300) {
                         d.userData.seeking = false;
                     } else {
                         toShip.normalize().multiplyScalar(CONFIG.DEBRIS_SPEED * 0.5); // HALF speed
                         d.userData.velocity.lerp(toShip, 0.01); // Slower acceleration
                     }
+                } else if (d.userData.movementMode === 'crossing') {
+                    // Move perpendicular to path
+                    d.userData.velocity.copy(d.userData.crossingDirection).multiplyScalar(d.userData.crossingSpeed);
                 }
+                // stationary mode: no velocity change, just rotation
                 
                 d.position.add(d.userData.velocity);
             });
