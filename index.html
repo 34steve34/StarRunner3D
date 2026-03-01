@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.1.0</title>
+    <title>Star Runner 3D - v1.1.1</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.1.0</div>
+    <div id="version">v1.1.1</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -549,20 +549,57 @@
 
             // Spawn only the FIRST gate initially
             const gate = new THREE.Group();
+            const TUNNEL_LENGTH = 150; // Length of the cylindrical tunnel
             
-            const ringGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
-            const ringMat = new THREE.MeshStandardMaterial({ 
+            // Entry ring (yellow)
+            const entryRingGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
+            const entryRingMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffff00, 
+                emissive: 0xffff00, 
+                emissiveIntensity: 0.8,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const entryRing = new THREE.Mesh(entryRingGeo, entryRingMat);
+            entryRing.position.z = TUNNEL_LENGTH / 2;
+            gate.add(entryRing);
+            
+            const entryLight = new THREE.PointLight(0xffff00, 500, 150);
+            entryLight.position.z = TUNNEL_LENGTH / 2;
+            gate.add(entryLight);
+            
+            // Exit ring (red)
+            const exitRingGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
+            const exitRingMat = new THREE.MeshStandardMaterial({ 
                 color: 0xff0000, 
                 emissive: 0xff0000, 
                 emissiveIntensity: 0.8,
                 metalness: 0.3,
                 roughness: 0.7
             });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            gate.add(ring);
+            const exitRing = new THREE.Mesh(exitRingGeo, exitRingMat);
+            exitRing.position.z = -TUNNEL_LENGTH / 2;
+            gate.add(exitRing);
             
-            const gateLight = new THREE.PointLight(0xff0000, 500, 150);
-            gate.add(gateLight);
+            const exitLight = new THREE.PointLight(0xff0000, 500, 150);
+            exitLight.position.z = -TUNNEL_LENGTH / 2;
+            gate.add(exitLight);
+            
+            // Cylindrical tunnel walls (semi-transparent)
+            const tunnelGeo = new THREE.CylinderGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_RADIUS, TUNNEL_LENGTH, 32, 1, true);
+            const tunnelMat = new THREE.MeshStandardMaterial({ 
+                color: 0x4444ff,
+                emissive: 0x2222ff,
+                emissiveIntensity: 0.3,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide,
+                metalness: 0.5,
+                roughness: 0.5
+            });
+            const tunnel = new THREE.Mesh(tunnelGeo, tunnelMat);
+            tunnel.rotation.x = Math.PI / 2; // Rotate to align with Z axis
+            gate.add(tunnel);
             
             gate.position.copy(gatePositions[0]);
             
@@ -578,6 +615,9 @@
                 passed: false, 
                 type: 'gate',
                 gateIndex: 0,
+                tunnelLength: TUNNEL_LENGTH,
+                enteredFromFront: false,
+                insideTunnel: false,
                 nextGatePos: levelData.gates > 1 ? gatePositions[1] : null,
                 allGatePositions: gatePositions
             };
@@ -737,24 +777,56 @@
             if (!ship || isRespawning) return;
             gates.forEach(gate => {
                 if (!gate.userData.passed) {
-                    const dist = ship.position.distanceTo(gate.position);
-                    if (dist < CONFIG.GATE_RADIUS + 20) {
-                        // Check if ship is within the ring plane
-                        const gateNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(gate.quaternion);
-                        const toShip = new THREE.Vector3().subVectors(ship.position, gate.position);
-                        const planeDistance = Math.abs(toShip.dot(gateNormal));
-                        
-                        if (planeDistance < CONFIG.GATE_THICKNESS * 2 && dist < CONFIG.GATE_RADIUS) {
-                            gate.userData.passed = true;
-                            gate.children[0].material.color.setHex(0x00ff00);
-                            gate.children[0].material.emissive.setHex(0x00ff00);
-                            
-                            // Spawn next gate if available
-                            spawnNextGate(gate);
-                            
-                            checkLevelComplete();
-                            updateHUD();
+                    // Transform ship position to gate's local space
+                    const localShipPos = ship.position.clone().sub(gate.position).applyQuaternion(gate.quaternion.clone().invert());
+                    const tunnelLength = gate.userData.tunnelLength;
+                    const radialDist = Math.sqrt(localShipPos.x * localShipPos.x + localShipPos.y * localShipPos.y);
+                    
+                    // Check if ship is within tunnel bounds
+                    const inTunnelZ = localShipPos.z >= -tunnelLength/2 && localShipPos.z <= tunnelLength/2;
+                    const inTunnelRadius = radialDist < CONFIG.GATE_RADIUS;
+                    
+                    // Entry detection (yellow ring side, z > 0)
+                    if (!gate.userData.enteredFromFront && localShipPos.z > tunnelLength/2 - 20 && localShipPos.z < tunnelLength/2 + 20) {
+                        if (radialDist < CONFIG.GATE_RADIUS) {
+                            gate.userData.enteredFromFront = true;
+                            gate.userData.insideTunnel = true;
+                            console.log('Entered gate from front');
                         }
+                    }
+                    
+                    // Inside tunnel - check for wall collision
+                    if (gate.userData.insideTunnel && inTunnelZ) {
+                        if (radialDist > CONFIG.GATE_RADIUS - 5) {
+                            // Hit the wall!
+                            gate.userData.enteredFromFront = false;
+                            gate.userData.insideTunnel = false;
+                            shakeDuration = 0.3;
+                            console.log('Hit tunnel wall!');
+                        }
+                    }
+                    
+                    // Exit detection (red ring side, z < 0)
+                    if (gate.userData.enteredFromFront && gate.userData.insideTunnel && localShipPos.z < -tunnelLength/2) {
+                        gate.userData.passed = true;
+                        // Turn both rings green
+                        gate.children[0].material.color.setHex(0x00ff00);
+                        gate.children[0].material.emissive.setHex(0x00ff00);
+                        gate.children[2].material.color.setHex(0x00ff00);
+                        gate.children[2].material.emissive.setHex(0x00ff00);
+                        gate.children[1].color.setHex(0x00ff00);
+                        gate.children[3].color.setHex(0x00ff00);
+                        
+                        console.log('Gate passed successfully!');
+                        spawnNextGate(gate);
+                        checkLevelComplete();
+                        updateHUD();
+                    }
+                    
+                    // Reset if ship leaves tunnel area without completing
+                    if (gate.userData.insideTunnel && !inTunnelZ && localShipPos.z < -tunnelLength/2 - 50) {
+                        gate.userData.enteredFromFront = false;
+                        gate.userData.insideTunnel = false;
                     }
                 }
             });
@@ -771,23 +843,60 @@
             const CORRIDOR_RADIUS = 200;
             const DEBRIS_COUNT = 12;
             const debrisPerSegment = Math.ceil(DEBRIS_COUNT / levelData.gates);
+            const TUNNEL_LENGTH = 150;
             
             // Spawn next gate
             const gate = new THREE.Group();
             
-            const ringGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
-            const ringMat = new THREE.MeshStandardMaterial({ 
+            // Entry ring (yellow)
+            const entryRingGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
+            const entryRingMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffff00, 
+                emissive: 0xffff00, 
+                emissiveIntensity: 0.8,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const entryRing = new THREE.Mesh(entryRingGeo, entryRingMat);
+            entryRing.position.z = TUNNEL_LENGTH / 2;
+            gate.add(entryRing);
+            
+            const entryLight = new THREE.PointLight(0xffff00, 500, 150);
+            entryLight.position.z = TUNNEL_LENGTH / 2;
+            gate.add(entryLight);
+            
+            // Exit ring (red)
+            const exitRingGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_THICKNESS, 16, 32);
+            const exitRingMat = new THREE.MeshStandardMaterial({ 
                 color: 0xff0000, 
                 emissive: 0xff0000, 
                 emissiveIntensity: 0.8,
                 metalness: 0.3,
                 roughness: 0.7
             });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            gate.add(ring);
+            const exitRing = new THREE.Mesh(exitRingGeo, exitRingMat);
+            exitRing.position.z = -TUNNEL_LENGTH / 2;
+            gate.add(exitRing);
             
-            const gateLight = new THREE.PointLight(0xff0000, 500, 150);
-            gate.add(gateLight);
+            const exitLight = new THREE.PointLight(0xff0000, 500, 150);
+            exitLight.position.z = -TUNNEL_LENGTH / 2;
+            gate.add(exitLight);
+            
+            // Cylindrical tunnel walls (semi-transparent)
+            const tunnelGeo = new THREE.CylinderGeometry(CONFIG.GATE_RADIUS, CONFIG.GATE_RADIUS, TUNNEL_LENGTH, 32, 1, true);
+            const tunnelMat = new THREE.MeshStandardMaterial({ 
+                color: 0x4444ff,
+                emissive: 0x2222ff,
+                emissiveIntensity: 0.3,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide,
+                metalness: 0.5,
+                roughness: 0.5
+            });
+            const tunnel = new THREE.Mesh(tunnelGeo, tunnelMat);
+            tunnel.rotation.x = Math.PI / 2; // Rotate to align with Z axis
+            gate.add(tunnel);
             
             gate.position.copy(allPositions[nextIndex]);
             
@@ -804,7 +913,10 @@
                 type: 'gate',
                 gateIndex: nextIndex,
                 nextGatePos: nextIndex < allPositions.length - 1 ? allPositions[nextIndex + 1] : null,
-                allGatePositions: allPositions
+                allGatePositions: allPositions,
+                tunnelLength: TUNNEL_LENGTH,
+                enteredFromFront: false,
+                insideTunnel: false
             };
             scene.add(gate);
             gates.push(gate);
