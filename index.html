@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.1.5</title>
+    <title>Star Runner 3D - v1.1.6</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.1.5</div>
+    <div id="version">v1.1.6</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -209,7 +209,7 @@
 		let prevGunTipPos = new THREE.Vector3();
         let starFields = [], localStars, gates = [], targets = [], bullets = [], debris = [], explosions = [];
         let phoneZero = { beta: 0, gamma: 0 }, currentRotationVel = { p: 0, y: 0 };
-        let isInitialized = false, thrustValue = 0, gameActive = false, pendingShot = false;
+        let isInitialized = false, thrustValue = 0, gameActive = false;
         let cameraAlignTimer = 0; // Track time since thrust stopped
         let velocityVec = new THREE.Vector3(0, 0, 0);
         let lastShipPos = new THREE.Vector3();
@@ -430,11 +430,6 @@
                 if (prevGunTipPos.lengthSq() === 0) prevGunTipPos.copy(currentGunTipPos);
                 if (dt > 0) gunTipVelocity.subVectors(currentGunTipPos, prevGunTipPos);
                 prevGunTipPos.copy(currentGunTipPos);
-                
-                if (pendingShot) { 
-                    fireLaser(); 
-                    pendingShot = false; 
-                }
                 
                 // Thrust with slider value
                 if (thrustValue > 0) {
@@ -1467,6 +1462,7 @@
         let startY = 0;
         let startBottom = 120;
         let thrustTouchId = null; // Track which touch is controlling thrust
+        let shootingTouchIds = new Set(); // Track all shooting touches
 
         thrustBtn.addEventListener('touchstart', (e) => { 
             e.preventDefault(); 
@@ -1519,13 +1515,38 @@
                     thrustValue = 0;
                 }
             }
-        });
-        
-        window.addEventListener('touchstart', (e) => { 
-            if (gameActive && !['thrustBtn', 'thrustSliderTrack', 'zeroBtn', 'startBtn', 'replayBtn'].includes(e.target.id)) {
-                pendingShot = true;
+            
+            // Clean up shooting touches
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                shootingTouchIds.delete(e.changedTouches[i].identifier);
             }
         });
+        
+        // OPTIMIZED SHOOTING - Fire immediately on touchstart, track touches to prevent conflicts
+        window.addEventListener('touchstart', (e) => { 
+            if (!gameActive) return;
+            
+            // Check each new touch
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                
+                // Skip if touching UI elements or thrust controls
+                if (target && ['thrustBtn', 'thrustSliderTrack', 'zeroBtn', 'startBtn', 'replayBtn'].includes(target.id)) {
+                    continue;
+                }
+                
+                // Skip if this touch is the thrust touch
+                if (touch.identifier === thrustTouchId) {
+                    continue;
+                }
+                
+                // Fire immediately - no delay!
+                shootingTouchIds.add(touch.identifier);
+                fireLaser();
+                console.log('Shot fired from touch', touch.identifier);
+            }
+        }, { passive: true });
         
 		document.getElementById('zeroBtn').addEventListener('touchstart', (e) => { 
 			e.preventDefault(); 
@@ -1556,7 +1577,7 @@
             // Space to shoot
             if (e.key === ' ') {
                 e.preventDefault();
-                pendingShot = true;
+                fireLaser();
             }
             
             // R to reset gyro
