@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.1.1</title>
+    <title>Star Runner 3D - v1.1.2</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.1.1</div>
+    <div id="version">v1.1.2</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -592,7 +592,7 @@
                 emissive: 0x2222ff,
                 emissiveIntensity: 0.3,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.30,
                 side: THREE.DoubleSide,
                 metalness: 0.5,
                 roughness: 0.5
@@ -889,7 +889,7 @@
                 emissive: 0x2222ff,
                 emissiveIntensity: 0.3,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.30,
                 side: THREE.DoubleSide,
                 metalness: 0.5,
                 roughness: 0.5
@@ -1442,7 +1442,7 @@
         const thrustTrack = document.getElementById('thrustSliderTrack');
         let isDragging = false;
         let startY = 0;
-        let startBottom = 52;
+        let startBottom = 120;
         let thrustTouchId = null; // Track which touch is controlling thrust
 
         thrustBtn.addEventListener('touchstart', (e) => { 
@@ -1451,7 +1451,7 @@
             isDragging = true;
             thrustTouchId = e.touches[0].identifier; // Remember this touch
             startY = e.touches[0].clientY;
-            startBottom = parseInt(thrustBtn.style.bottom || '52');
+            startBottom = parseInt(thrustBtn.style.bottom || '120');
             thrustBtn.classList.add('active');
             
             // Give minimum thrust immediately when touched (even at zero position)
@@ -1465,11 +1465,11 @@
                     if (e.touches[i].identifier === thrustTouchId) {
                         e.preventDefault();
                         const deltaY = startY - e.touches[i].clientY; // Inverted: drag up = positive
-                        const newBottom = Math.max(52, Math.min(156, startBottom + deltaY)); // 52 to 156 (104px range)
+                        const newBottom = Math.max(120, Math.min(224, startBottom + deltaY)); // 120 to 224 (104px range)
                         thrustBtn.style.bottom = newBottom + 'px';
                         
                         // Calculate thrust value (0.3 to 1.0) - minimum 30% when touching
-                        thrustValue = Math.max(0.3, (newBottom - 52) / 104);
+                        thrustValue = Math.max(0.3, (newBottom - 120) / 104);
                         break;
                     }
                 }
@@ -1492,7 +1492,7 @@
                     thrustTouchId = null;
                     thrustBtn.classList.remove('active');
                     // Spring back to bottom
-                    thrustBtn.style.bottom = '52px';
+                    thrustBtn.style.bottom = '120px';
                     thrustValue = 0;
                 }
             }
