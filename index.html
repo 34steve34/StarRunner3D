@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.1.6</title>
+    <title>Star Runner 3D - v1.1.7</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.1.6</div>
+    <div id="version">v1.1.7</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -472,8 +472,8 @@
                     // Increment timer when not thrusting
                     cameraAlignTimer += dt;
                     
-                    // After 1.5 seconds of no thrust, start aligning
-                    if (cameraAlignTimer > 1.5) {
+                    // After 0.5 seconds of no thrust, start aligning
+                    if (cameraAlignTimer > 0.5) {
                         // Calculate ideal position directly behind ship
                         const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion);
                         const idealCameraPos = ship.position.clone().sub(shipForward.multiplyScalar(CONFIG.CAMERA_RADIUS));
