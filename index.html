@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.2.0</title>
+    <title>Star Runner 3D - v1.2.1</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.2.0</div>
+    <div id="version">v1.2.1</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -189,17 +189,17 @@
                 gates: 5, 
                 targets: 3, 
                 debris: 3,
-                star3: 60, // 1:00 for 3 stars
-                star2: 90, // 1:30 for 2 stars
-                star1: 120 // 2:00 for 1 star
+                star3: 90, // 1:30 for 3 stars
+                star2: 120, // 2:00 for 2 stars
+                star1: 150 // 2:30 for 1 star
             },
             2: { 
                 gates: 8, 
                 targets: 5, 
                 debris: 5,
-                star3: 90,
-                star2: 120,
-                star1: 150
+                star3: 120,
+                star2: 150,
+                star1: 180
             }
         };
 
@@ -479,7 +479,7 @@
                         const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship.quaternion);
                         const idealCameraPos = ship.position.clone()
                             .sub(shipForward.multiplyScalar(CONFIG.CAMERA_RADIUS))
-                            .add(shipUp.multiplyScalar(8)); // Elevate 8 units above ship
+                            .add(shipUp.multiplyScalar(11)); // Elevate 11 units above ship
                         
                         // Slowly lerp camera toward ideal position (takes ~4 seconds to complete)
                         const alignSpeed = 0.015; // Slow lerp for smooth 4-second alignment
@@ -1282,7 +1282,7 @@
         function startTimer() {
             elapsedTime = 0;
             timerInterval = setInterval(() => {
-                if (gameActive && !isRespawning) { 
+                if (gameActive) { // Timer runs as long as game is active (even during respawn)
                     elapsedTime++;
                     const mins = Math.floor(elapsedTime / 60);
                     const secs = elapsedTime % 60;
@@ -1312,7 +1312,7 @@
                 localStorage.setItem(bestTimeKey, elapsedTime.toString());
             }
             
-            // Unlock next level if completed
+            // Unlock next level if completed (any stars unlock it)
             if (stars > 0 && currentLevel < Object.keys(LEVELS).length) {
                 localStorage.setItem(`starRunner_level${currentLevel + 1}_unlocked`, 'true');
                 document.getElementById('completeMsg').textContent = `Level ${currentLevel + 1} Unlocked!`;
@@ -1330,10 +1330,30 @@
         levelButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const level = parseInt(btn.dataset.level);
-                if (level === 1 || localStorage.getItem(`starRunner_level${level}_unlocked`)) {
+                const isUnlocked = level === 1 || localStorage.getItem(`starRunner_level${level}_unlocked`) === 'true';
+                
+                if (isUnlocked) {
                     currentLevel = level;
                     levelButtons.forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
+                }
+            });
+        });
+        
+        // Check and update level button states on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            levelButtons.forEach(btn => {
+                const level = parseInt(btn.dataset.level);
+                const isUnlocked = level === 1 || localStorage.getItem(`starRunner_level${level}_unlocked`) === 'true';
+                
+                if (isUnlocked) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.textContent = `Level ${level}`;
+                } else {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.textContent = `Level ${level} 🔒`;
                 }
             });
         });
