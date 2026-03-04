@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.2.3</title>
+    <title>Star Runner 3D - v1.2.4</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.2.3</div>
+    <div id="version">v1.2.4</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -222,7 +222,8 @@
         let gyroClampTimer = 0;
 		// === GYRO INTEGRATION ===
 		let relativeTilt = { p: 0, y: 0 };
-
+		let lastMotionTime = 0;
+		let currentRotationRate = { alpha: 0, beta: 0, gamma: 0 };
         
         let audioCtx; // Web Audio API Context
         let timerInterval = null;
@@ -1600,7 +1601,32 @@
             }
         });
 
+		// === GYRO MOTION HANDLER ===
+		const GYRO_PITCH_GAIN = 0.05;
+		const GYRO_YAW_GAIN   = 0.03;
+		const RATE_DEADZONE = 2.5;
 
+		window.addEventListener('devicemotion', e => {
+		    if (e.rotationRate && gameActive) {
+		        currentRotationRate = e.rotationRate;
+		        const now = performance.now();
+		        if (lastMotionTime > 0) {
+		            const dt = (now - lastMotionTime) / 1000;
+		            let pitchRate = (e.rotationRate.beta || 0) * (180 / Math.PI);
+		            let yawRate   = -(e.rotationRate.gamma || 0) * (180 / Math.PI);
+		            if (Math.abs(pitchRate) > RATE_DEADZONE) {
+		                relativeTilt.p += pitchRate * dt * GYRO_PITCH_GAIN;
+		            }
+		            if (Math.abs(yawRate) > RATE_DEADZONE) {
+		                relativeTilt.y += yawRate * dt * GYRO_YAW_GAIN;
+		            }
+		            relativeTilt.p = Math.max(-95, Math.min(95, relativeTilt.p));
+		            if (relativeTilt.y > 180) relativeTilt.y -= 360;
+		            if (relativeTilt.y < -180) relativeTilt.y += 360;
+		        }
+		        lastMotionTime = now;
+		    }
+		});
 // Register service worker for offline functionality
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
