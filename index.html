@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.2.4</title>
+    <title>Star Runner 3D - v1.3.0</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.2.4</div>
+    <div id="version">v1.3.0</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -186,6 +186,7 @@
 
         const LEVELS = {
             1: { 
+                courseType: 'cylindrical',
                 gates: 5, 
                 targets: 3, 
                 debris: 3,
@@ -194,6 +195,7 @@
                 star1: 150 // 2:30 for 1 star
             },
             2: { 
+                courseType: 'rectangular',
                 gates: 8, 
                 targets: 5, 
                 debris: 5,
@@ -224,6 +226,10 @@
 		let relativeTilt = { p: 0, y: 0 };
 		let lastMotionTime = 0;
 		let currentRotationRate = { alpha: 0, beta: 0, gamma: 0 };
+        
+        // === RECTANGULAR TUNNEL ===
+        let tunnelPanels = [];
+        let pathSegments = [];
         
         let audioCtx; // Web Audio API Context
         let timerInterval = null;
@@ -449,7 +455,16 @@
                 camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, CONFIG.FOV_SMOOTHING);
                 camera.updateProjectionMatrix();
                 
-                checkGateCollision();
+                // Check collision based on level type
+                const levelData = LEVELS[currentLevel];
+                if (levelData.courseType === 'rectangular') {
+                    checkRectangularGateCollision();
+                    checkRectangularWallCollision();
+                    updateRectangularPanels();
+                } else {
+                    checkGateCollision();
+                }
+                
                 checkDebrisCollision();
                 updateDebris();
                 handleStarWrap(); 
@@ -521,7 +536,401 @@
             bullets.push(p);
         }
 
+        // ====================== RECTANGULAR TUNNEL SYSTEM ======================
+        const RECT_TUNNEL_CONFIG = {
+            TUNNEL_WIDTH: 120,
+            TUNNEL_HEIGHT: 100,
+            PANEL_SPACING: 40,
+            COLORS: {
+                top: 0xff8800,      // Orange
+                right: 0xffff00,    // Yellow
+                left: 0xff6600,     // Burnt Orange
+                bottom: 0x0088ff,   // Blue
+                passed: 0x00ff00    // Green
+            }
+        };
+
+        function spawnRectangularTunnelLevel() {
+            const levelData = LEVELS[currentLevel];
+            
+            // Clear previous level
+            gates.forEach(g => scene.remove(g));
+            gates.length = 0;
+            targets.forEach(t => scene.remove(t));
+            targets.length = 0;
+            debris.forEach(d => scene.remove(d));
+            debris.length = 0;
+            tunnelPanels.forEach(p => scene.remove(p.group));
+            tunnelPanels.length = 0;
+            pathSegments.length = 0;
+            
+            triggerBloom();
+            
+            // Generate curved path
+            const GATE_SPACING = 1800;
+            const FIRST_GATE_DISTANCE = 500;
+            const MAX_ANGLE_DEVIATION = Math.PI / 4; // 45 degrees
+            
+            const gatePositions = [];
+            let currentPos = new THREE.Vector3(0, 0, -FIRST_GATE_DISTANCE);
+            gatePositions.push(currentPos.clone());
+            
+            for (let i = 1; i < levelData.gates; i++) {
+                const theta = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION * 2;
+                const phi = (Math.random() - 0.5) * MAX_ANGLE_DEVIATION * 2;
+                
+                const forward = Math.cos(theta) * Math.cos(phi);
+                const sideways = Math.sin(theta);
+                const updown = Math.sin(phi);
+                
+                const dir = new THREE.Vector3(sideways, updown, -forward).normalize();
+                const offset = dir.multiplyScalar(GATE_SPACING);
+                
+                currentPos = currentPos.clone().add(offset);
+                gatePositions.push(currentPos);
+            }
+            
+            // Generate panels along the path
+            for (let i = 0; i < gatePositions.length - 1; i++) {
+                const start = gatePositions[i];
+                const end = gatePositions[i + 1];
+                const segmentLength = start.distanceTo(end);
+                const panelCount = Math.floor(segmentLength / RECT_TUNNEL_CONFIG.PANEL_SPACING);
+                
+                for (let j = 0; j <= panelCount; j++) {
+                    const t = j / panelCount;
+                    const panelPos = start.clone().lerp(end, t);
+                    const direction = new THREE.Vector3().subVectors(end, start).normalize();
+                    
+                    const panel = createRectangularPanel(panelPos, direction);
+                    tunnelPanels.push(panel);
+                }
+            }
+            
+            // Spawn gates at gate positions
+            for (let i = 0; i < gatePositions.length; i++) {
+                const gate = new THREE.Group();
+                
+                // Simple ring gate (no tunnel cylinder for rectangular level)
+                const ringGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS * 0.7, CONFIG.GATE_THICKNESS, 16, 32);
+                const ringMat = new THREE.MeshStandardMaterial({ 
+                    color: 0xff0000, 
+                    emissive: 0xff0000, 
+                    emissiveIntensity: 0.8,
+                    metalness: 0.3,
+                    roughness: 0.7
+                });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                gate.add(ring);
+                
+                const ringLight = new THREE.PointLight(0xff0000, 500, 150);
+                gate.add(ringLight);
+                
+                gate.position.copy(gatePositions[i]);
+                
+                // Orient gate
+                if (i < gatePositions.length - 1) {
+                    const direction = new THREE.Vector3()
+                        .subVectors(gatePositions[i + 1], gatePositions[i])
+                        .normalize();
+                    gate.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
+                }
+                
+                gate.userData = { 
+                    passed: false, 
+                    type: 'gate',
+                    gateIndex: i
+                };
+                scene.add(gate);
+                gates.push(gate);
+            }
+            
+            // Spawn targets
+            for (let i = 0; i < levelData.targets; i++) {
+                const segmentIndex = Math.floor(Math.random() * (gatePositions.length - 1));
+                const gate1 = gatePositions[segmentIndex];
+                const gate2 = gatePositions[segmentIndex + 1];
+                
+                const t = new THREE.Mesh(
+                    new THREE.SphereGeometry(18, 16, 16),
+                    new THREE.MeshStandardMaterial({ 
+                        color: 0xff0000, 
+                        emissive: 0xff0000, 
+                        emissiveIntensity: 1.0,
+                        metalness: 0.3,
+                        roughness: 0.7
+                    })
+                );
+                
+                const t_param = 0.3 + Math.random() * 0.4;
+                const pos = gate1.clone().lerp(gate2, t_param);
+                
+                // Keep within tunnel bounds
+                const halfWidth = RECT_TUNNEL_CONFIG.TUNNEL_WIDTH / 2 - 30;
+                const halfHeight = RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT / 2 - 30;
+                pos.x += (Math.random() - 0.5) * halfWidth * 2;
+                pos.y += (Math.random() - 0.5) * halfHeight * 2;
+                
+                t.position.copy(pos);
+                
+                const targetLight = new THREE.PointLight(0xff0000, 500, 150);
+                t.add(targetLight);
+                
+                t.userData = { hit: false, type: 'target' };
+                scene.add(t);
+                targets.push(t);
+            }
+            
+            // Spawn debris
+            const DEBRIS_COUNT = 12;
+            for (let i = 0; i < DEBRIS_COUNT; i++) {
+                const size = 15 + Math.random() * 25;
+                const colors = [0xff6600, 0xffff00, 0xff00ff, 0x00ffff];
+                const debrisColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                const d = new THREE.Mesh(
+                    new THREE.DodecahedronGeometry(size, 0),
+                    new THREE.MeshStandardMaterial({ 
+                        color: debrisColor, 
+                        emissive: debrisColor,
+                        emissiveIntensity: 0.9,
+                        metalness: 0.8, 
+                        roughness: 0.2 
+                    })
+                );
+                
+                const debrisLight = new THREE.PointLight(debrisColor, 800, 200);
+                d.add(debrisLight);
+                
+                const segmentIndex = Math.floor(Math.random() * (gatePositions.length - 1));
+                const gate1 = gatePositions[segmentIndex];
+                const gate2 = gatePositions[segmentIndex + 1];
+                const t_param = Math.random();
+                const pos = gate1.clone().lerp(gate2, t_param);
+                
+                const halfWidth = RECT_TUNNEL_CONFIG.TUNNEL_WIDTH / 2 - 25;
+                const halfHeight = RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT / 2 - 25;
+                pos.x += (Math.random() - 0.5) * halfWidth * 2;
+                pos.y += (Math.random() - 0.5) * halfHeight * 2;
+                
+                d.position.copy(pos);
+                
+                const rand = Math.random();
+                let movementMode, crossingDir = null, crossingSpeed = 0;
+                
+                if (rand < 0.6) {
+                    movementMode = 'stationary';
+                } else if (rand < 0.8) {
+                    movementMode = 'seeking';
+                } else {
+                    movementMode = 'crossing';
+                    const angle = Math.random() * Math.PI * 2;
+                    crossingDir = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
+                    crossingSpeed = 0.5 + Math.random() * 1.5;
+                }
+                
+                d.userData = { 
+                    velocity: new THREE.Vector3(),
+                    seeking: movementMode === 'seeking',
+                    movementMode: movementMode,
+                    crossingDirection: crossingDir,
+                    crossingSpeed: crossingSpeed,
+                    rotationSpeed: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.05,
+                        (Math.random() - 0.5) * 0.05,
+                        (Math.random() - 0.5) * 0.05
+                    ),
+                    type: 'debris'
+                };
+                
+                scene.add(d);
+                debris.push(d);
+            }
+            
+            updateHUD();
+        }
+
+        function createRectangularPanel(position, direction) {
+            const group = new THREE.Group();
+            const halfWidth = RECT_TUNNEL_CONFIG.TUNNEL_WIDTH / 2;
+            const halfHeight = RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT / 2;
+            const thickness = 2;
+            
+            // Create four sides
+            const sides = {};
+            
+            // Top panel
+            const topGeo = new THREE.PlaneGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, thickness);
+            const topMat = new THREE.MeshStandardMaterial({
+                color: RECT_TUNNEL_CONFIG.COLORS.top,
+                emissive: RECT_TUNNEL_CONFIG.COLORS.top,
+                emissiveIntensity: 0.4,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+            const topPanel = new THREE.Mesh(topGeo, topMat);
+            topPanel.position.y = halfHeight;
+            topPanel.rotation.x = Math.PI / 2;
+            group.add(topPanel);
+            sides.top = topPanel;
+            
+            // Bottom panel
+            const bottomGeo = new THREE.PlaneGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, thickness);
+            const bottomMat = new THREE.MeshStandardMaterial({
+                color: RECT_TUNNEL_CONFIG.COLORS.bottom,
+                emissive: RECT_TUNNEL_CONFIG.COLORS.bottom,
+                emissiveIntensity: 0.4,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+            const bottomPanel = new THREE.Mesh(bottomGeo, bottomMat);
+            bottomPanel.position.y = -halfHeight;
+            bottomPanel.rotation.x = Math.PI / 2;
+            group.add(bottomPanel);
+            sides.bottom = bottomPanel;
+            
+            // Left panel
+            const leftGeo = new THREE.PlaneGeometry(thickness, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT);
+            const leftMat = new THREE.MeshStandardMaterial({
+                color: RECT_TUNNEL_CONFIG.COLORS.left,
+                emissive: RECT_TUNNEL_CONFIG.COLORS.left,
+                emissiveIntensity: 0.4,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+            const leftPanel = new THREE.Mesh(leftGeo, leftMat);
+            leftPanel.position.x = -halfWidth;
+            leftPanel.rotation.y = Math.PI / 2;
+            group.add(leftPanel);
+            sides.left = leftPanel;
+            
+            // Right panel
+            const rightGeo = new THREE.PlaneGeometry(thickness, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT);
+            const rightMat = new THREE.MeshStandardMaterial({
+                color: RECT_TUNNEL_CONFIG.COLORS.right,
+                emissive: RECT_TUNNEL_CONFIG.COLORS.right,
+                emissiveIntensity: 0.4,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+            const rightPanel = new THREE.Mesh(rightGeo, rightMat);
+            rightPanel.position.x = halfWidth;
+            rightPanel.rotation.y = Math.PI / 2;
+            group.add(rightPanel);
+            sides.right = rightPanel;
+            
+            // Add edge lines
+            const edgeGeo = new THREE.EdgesGeometry(
+                new THREE.BoxGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT, 1)
+            );
+            const edgeMat = new THREE.LineBasicMaterial({ 
+                color: 0xffffff, 
+                opacity: 0.6, 
+                transparent: true 
+            });
+            const edges = new THREE.LineSegments(edgeGeo, edgeMat);
+            group.add(edges);
+            
+            group.position.copy(position);
+            
+            // Orient panel to face along direction
+            group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
+            
+            scene.add(group);
+            
+            return {
+                group: group,
+                position: position.clone(),
+                zPosition: position.z,
+                passed: false,
+                sides: sides,
+                edges: edges
+            };
+        }
+
+        function updateRectangularPanels() {
+            if (!ship) return;
+            
+            tunnelPanels.forEach(panel => {
+                if (!panel.passed && ship.position.z < panel.zPosition - 10) {
+                    panel.passed = true;
+                    
+                    // Change all sides to green
+                    Object.values(panel.sides).forEach(side => {
+                        side.material.color.setHex(RECT_TUNNEL_CONFIG.COLORS.passed);
+                        side.material.emissive.setHex(RECT_TUNNEL_CONFIG.COLORS.passed);
+                        side.material.opacity = 0.3;
+                    });
+                    
+                    // Change edges to green
+                    panel.edges.material.color.setHex(RECT_TUNNEL_CONFIG.COLORS.passed);
+                }
+            });
+        }
+
+        function checkRectangularWallCollision() {
+            if (!ship || isRespawning) return;
+            
+            const halfWidth = RECT_TUNNEL_CONFIG.TUNNEL_WIDTH / 2;
+            const halfHeight = RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT / 2;
+            
+            // Simple boundary check (we're not accounting for path curves yet, but good enough)
+            const hitWall = Math.abs(ship.position.x) > halfWidth || Math.abs(ship.position.y) > halfHeight;
+            
+            if (hitWall) {
+                // Reduce velocity
+                velocityVec.multiplyScalar(0.6);
+                
+                // Camera shake
+                shakeDuration = 0.3;
+                
+                // Push ship back toward center
+                if (Math.abs(ship.position.x) > halfWidth) {
+                    ship.position.x = Math.sign(ship.position.x) * halfWidth;
+                }
+                if (Math.abs(ship.position.y) > halfHeight) {
+                    ship.position.y = Math.sign(ship.position.y) * halfHeight;
+                }
+            }
+        }
+
+        function checkRectangularGateCollision() {
+            if (!ship || isRespawning) return;
+            
+            gates.forEach(gate => {
+                if (!gate.userData.passed) {
+                    const dist = ship.position.distanceTo(gate.position);
+                    
+                    // Simple pass detection - if ship is close and has passed the Z position
+                    if (dist < CONFIG.GATE_RADIUS && ship.position.z < gate.position.z - 20) {
+                        gate.userData.passed = true;
+                        
+                        // Turn gate green
+                        gate.children[0].material.color.setHex(0x00ff00);
+                        gate.children[0].material.emissive.setHex(0x00ff00);
+                        gate.children[1].color.setHex(0x00ff00);
+                        
+                        checkLevelComplete();
+                        updateHUD();
+                    }
+                }
+            });
+        }
+
         function spawnLevel() {
+            const levelData = LEVELS[currentLevel];
+            
+            // Route to correct level type
+            if (levelData.courseType === 'rectangular') {
+                spawnRectangularTunnelLevel();
+                return;
+            }
+            
+            // Cylindrical tunnel level (original code)
             // Clear previous level objects
             gates.forEach(g => scene.remove(g));
             gates.length = 0;
