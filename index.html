@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.3</title>
+    <title>Star Runner 3D - v1.3.4</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.3</div>
+    <div id="version">v1.3.4</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -567,27 +567,29 @@
             
             triggerBloom();
             
-            // Generate smooth curved path using control points
-            const SEGMENT_LENGTH = 1800; // Distance between control points
+            // Generate smooth curved path with MANY control points for crazy curves
+            const CONTROL_POINT_SPACING = 600; // Control point every 600 units (much more frequent!)
             const FIRST_GATE_DISTANCE = 500;
+            const TOTAL_LENGTH = levelData.gates * 1800; // Total course length
             
-            // Create control points for smooth curve
+            // Create MANY control points for wild curves
             const controlPoints = [];
             controlPoints.push(new THREE.Vector3(0, 0, 0)); // Start
-            controlPoints.push(new THREE.Vector3(0, 0, -FIRST_GATE_DISTANCE)); // First gate
+            controlPoints.push(new THREE.Vector3(0, 0, -FIRST_GATE_DISTANCE)); // First gate area
             
             let currentPos = new THREE.Vector3(0, 0, -FIRST_GATE_DISTANCE);
+            let numControlPoints = Math.floor(TOTAL_LENGTH / CONTROL_POINT_SPACING);
             
-            // Generate control points with smooth random offsets
-            for (let i = 1; i < levelData.gates; i++) {
-                // Random offset that creates sweeping curves
-                const offsetX = (Math.random() - 0.5) * 400; // ±200 units
-                const offsetY = (Math.random() - 0.5) * 300; // ±150 units
+            // Generate many control points with aggressive random offsets
+            for (let i = 0; i < numControlPoints; i++) {
+                // Much more aggressive random offsets for crazy curves
+                const offsetX = (Math.random() - 0.5) * 800; // ±400 units (doubled!)
+                const offsetY = (Math.random() - 0.5) * 600; // ±300 units (doubled!)
                 
                 currentPos = new THREE.Vector3(
                     currentPos.x + offsetX,
                     currentPos.y + offsetY,
-                    currentPos.z - SEGMENT_LENGTH
+                    currentPos.z - CONTROL_POINT_SPACING
                 );
                 
                 controlPoints.push(currentPos.clone());
@@ -596,7 +598,7 @@
             // Create smooth curve through control points using Catmull-Rom spline
             const curve = new THREE.CatmullRomCurve3(controlPoints);
             curve.curveType = 'catmullrom';
-            curve.tension = 0.5; // 0 = sharp corners, 1 = very smooth
+            curve.tension = 0.3; // Lower tension = tighter curves (was 0.5)
             
             // Sample points along the curve for panels
             const totalPanels = Math.floor(curve.getLength() / RECT_TUNNEL_CONFIG.PANEL_SPACING);
@@ -612,7 +614,7 @@
                 tunnelPanels.push(panel);
             }
             
-            // Sample gate positions along the curve
+            // Sample gate positions along the curve (evenly spaced)
             const gatePositions = [];
             for (let i = 0; i < levelData.gates; i++) {
                 const t = (i + 1) / (levelData.gates + 1); // Evenly spaced along curve
@@ -654,37 +656,7 @@
                 gates.push(gate);
             }
             
-            // Spawn targets along the curve
-            for (let i = 0; i < levelData.targets; i++) {
-                const t = Math.random() * 0.8 + 0.1; // Random position along curve (10%-90%)
-                const pos = curve.getPointAt(t);
-                
-                const target = new THREE.Mesh(
-                    new THREE.SphereGeometry(18, 16, 16),
-                    new THREE.MeshStandardMaterial({ 
-                        color: 0xff0000, 
-                        emissive: 0xff0000, 
-                        emissiveIntensity: 1.0,
-                        metalness: 0.3,
-                        roughness: 0.7
-                    })
-                );
-                
-                // Add random offset within tunnel bounds
-                const halfWidth = RECT_TUNNEL_CONFIG.TUNNEL_WIDTH / 2 - 30;
-                const halfHeight = RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT / 2 - 30;
-                pos.x += (Math.random() - 0.5) * halfWidth * 2;
-                pos.y += (Math.random() - 0.5) * halfHeight * 2;
-                
-                target.position.copy(pos);
-                
-                const targetLight = new THREE.PointLight(0xff0000, 500, 150);
-                target.add(targetLight);
-                
-                target.userData = { hit: false, type: 'target' };
-                scene.add(target);
-                targets.push(target);
-            }
+            // NO TARGETS for rectangular level - just panels!
             
             // NO DEBRIS for rectangular level
             
@@ -1486,17 +1458,16 @@
 
         function checkLevelComplete() {
             const levelData = LEVELS[currentLevel];
-            const allTargetsHit = targets.every(t => t.userData.hit);
-            
             let objectivesComplete = false;
             
             if (levelData.courseType === 'rectangular') {
-                // For rectangular: all panels must be passed and all targets hit
+                // For rectangular: all panels must be passed (no targets)
                 const allPanelsPassed = tunnelPanels.every(p => p.passed);
-                objectivesComplete = allPanelsPassed && allTargetsHit;
+                objectivesComplete = allPanelsPassed;
             } else {
                 // For cylindrical: all gates must be passed and all targets hit
                 const allGatesPassed = gates.every(g => g.userData.passed);
+                const allTargetsHit = targets.every(t => t.userData.hit);
                 objectivesComplete = allGatesPassed && allTargetsHit;
             }
             
@@ -1663,9 +1634,7 @@
             if (levelData.courseType === 'rectangular') {
                 const panelsPassed = tunnelPanels.filter(p => p.passed).length;
                 const panelsTotal = tunnelPanels.length;
-                document.getElementById('gatesComplete').textContent = panelsPassed;
-                document.getElementById('gatesTotal').textContent = panelsTotal;
-                document.getElementById('objectiveInfo').innerHTML = `Panels: <span id="gatesComplete">${panelsPassed}</span>/<span id="gatesTotal">${panelsTotal}</span> | Targets: <span id="targetsComplete">${targetsComplete}</span>/<span id="targetsTotal">${levelData.targets}</span>`;
+                document.getElementById('objectiveInfo').innerHTML = `Panels: <span id="gatesComplete">${panelsPassed}</span>/<span id="gatesTotal">${panelsTotal}</span>`;
             } else {
                 document.getElementById('gatesComplete').textContent = gatesComplete;
                 document.getElementById('gatesTotal').textContent = levelData.gates;
