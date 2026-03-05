@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.6</title>
+    <title>Star Runner 3D - v1.3.7</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.6</div>
+    <div id="version">v1.3.7</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -538,9 +538,9 @@
 
         // ====================== RECTANGULAR TUNNEL SYSTEM ======================
         const RECT_TUNNEL_CONFIG = {
-            TUNNEL_WIDTH: 120,
-            TUNNEL_HEIGHT: 100,
-            PANEL_SPACING: 80,  // Increased from 40 to reduce panel count
+            TUNNEL_WIDTH: 240,  // Doubled from 120
+            TUNNEL_HEIGHT: 200, // Doubled from 100
+            PANEL_SPACING: 80,
             PANEL_THICKNESS: 30,
             COLORS: {
                 top: 0xff8800,      // Orange
