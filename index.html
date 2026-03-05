@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.4</title>
+    <title>Star Runner 3D - v1.3.5</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.4</div>
+    <div id="version">v1.3.5</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -540,8 +540,8 @@
         const RECT_TUNNEL_CONFIG = {
             TUNNEL_WIDTH: 120,
             TUNNEL_HEIGHT: 100,
-            PANEL_SPACING: 40,
-            PANEL_THICKNESS: 30,  // Make panels much thicker
+            PANEL_SPACING: 80,  // Increased from 40 to reduce panel count
+            PANEL_THICKNESS: 30,
             COLORS: {
                 top: 0xff8800,      // Orange
                 right: 0xffff00,    // Yellow
@@ -675,10 +675,8 @@
             
             // Top panel
             const topGeo = new THREE.PlaneGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, thickness);
-            const topMat = new THREE.MeshStandardMaterial({
+            const topMat = new THREE.MeshBasicMaterial({  // Changed to MeshBasicMaterial for performance
                 color: RECT_TUNNEL_CONFIG.COLORS.top,
-                emissive: RECT_TUNNEL_CONFIG.COLORS.top,
-                emissiveIntensity: 0.4,
                 transparent: true,
                 opacity: 0.6,
                 side: THREE.DoubleSide
@@ -691,10 +689,8 @@
             
             // Bottom panel
             const bottomGeo = new THREE.PlaneGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, thickness);
-            const bottomMat = new THREE.MeshStandardMaterial({
+            const bottomMat = new THREE.MeshBasicMaterial({
                 color: RECT_TUNNEL_CONFIG.COLORS.bottom,
-                emissive: RECT_TUNNEL_CONFIG.COLORS.bottom,
-                emissiveIntensity: 0.4,
                 transparent: true,
                 opacity: 0.6,
                 side: THREE.DoubleSide
@@ -707,10 +703,8 @@
             
             // Left panel
             const leftGeo = new THREE.PlaneGeometry(thickness, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT);
-            const leftMat = new THREE.MeshStandardMaterial({
+            const leftMat = new THREE.MeshBasicMaterial({
                 color: RECT_TUNNEL_CONFIG.COLORS.left,
-                emissive: RECT_TUNNEL_CONFIG.COLORS.left,
-                emissiveIntensity: 0.4,
                 transparent: true,
                 opacity: 0.6,
                 side: THREE.DoubleSide
@@ -723,10 +717,8 @@
             
             // Right panel
             const rightGeo = new THREE.PlaneGeometry(thickness, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT);
-            const rightMat = new THREE.MeshStandardMaterial({
+            const rightMat = new THREE.MeshBasicMaterial({
                 color: RECT_TUNNEL_CONFIG.COLORS.right,
-                emissive: RECT_TUNNEL_CONFIG.COLORS.right,
-                emissiveIntensity: 0.4,
                 transparent: true,
                 opacity: 0.6,
                 side: THREE.DoubleSide
@@ -737,17 +729,7 @@
             group.add(rightPanel);
             sides.right = rightPanel;
             
-            // Add edge lines
-            const edgeGeo = new THREE.EdgesGeometry(
-                new THREE.BoxGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT, thickness)
-            );
-            const edgeMat = new THREE.LineBasicMaterial({ 
-                color: 0xffffff, 
-                opacity: 0.8, 
-                transparent: true 
-            });
-            const edges = new THREE.LineSegments(edgeGeo, edgeMat);
-            group.add(edges);
+            // Removed edge lines for performance
             
             group.position.copy(position);
             
@@ -762,7 +744,7 @@
                 zPosition: position.z,
                 passed: false,
                 sides: sides,
-                edges: edges
+                edges: null  // No edges anymore
             };
         }
 
@@ -770,18 +752,25 @@
             if (!ship) return;
             
             tunnelPanels.forEach(panel => {
+                // Mark panels as passed
                 if (!panel.passed && ship.position.z < panel.zPosition - 10) {
                     panel.passed = true;
                     
                     // Change all sides to green
                     Object.values(panel.sides).forEach(side => {
                         side.material.color.setHex(RECT_TUNNEL_CONFIG.COLORS.passed);
-                        side.material.emissive.setHex(RECT_TUNNEL_CONFIG.COLORS.passed);
                         side.material.opacity = 0.3;
                     });
-                    
-                    // Change edges to green
-                    panel.edges.material.color.setHex(RECT_TUNNEL_CONFIG.COLORS.passed);
+                }
+                
+                // Cull panels that are far behind the ship (performance optimization)
+                const distanceBehind = ship.position.z - panel.zPosition;
+                if (distanceBehind > 500) {
+                    // Hide panel if it's more than 500 units behind
+                    panel.group.visible = false;
+                } else {
+                    // Show panel if it's within range
+                    panel.group.visible = true;
                 }
             });
         }
