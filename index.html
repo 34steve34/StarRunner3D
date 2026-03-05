@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.5</title>
+    <title>Star Runner 3D - v1.3.6</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.5</div>
+    <div id="version">v1.3.6</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -751,10 +751,13 @@
         function updateRectangularPanels() {
             if (!ship) return;
             
+            let anyPanelJustPassed = false;
+            
             tunnelPanels.forEach(panel => {
                 // Mark panels as passed
                 if (!panel.passed && ship.position.z < panel.zPosition - 10) {
                     panel.passed = true;
+                    anyPanelJustPassed = true;
                     
                     // Change all sides to green
                     Object.values(panel.sides).forEach(side => {
@@ -773,6 +776,12 @@
                     panel.group.visible = true;
                 }
             });
+            
+            // Check for level completion and update HUD when panels change
+            if (anyPanelJustPassed) {
+                updateHUD();
+                checkLevelComplete();
+            }
         }
 
         function checkRectangularWallCollision() {
