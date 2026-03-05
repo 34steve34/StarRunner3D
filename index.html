@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.1</title>
+    <title>Star Runner 3D - v1.3.2</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.1</div>
+    <div id="version">v1.3.2</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -541,6 +541,7 @@
             TUNNEL_WIDTH: 120,
             TUNNEL_HEIGHT: 100,
             PANEL_SPACING: 40,
+            PANEL_THICKNESS: 30,  // Make panels much thicker
             COLORS: {
                 top: 0xff8800,      // Orange
                 right: 0xffff00,    // Yellow
@@ -607,34 +608,14 @@
                 }
             }
             
-            // Spawn gates at gate positions
+            // Spawn gates at gate positions (invisible markers for progress tracking)
             for (let i = 0; i < gatePositions.length; i++) {
                 const gate = new THREE.Group();
                 
-                // Simple ring gate (no tunnel cylinder for rectangular level)
-                const ringGeo = new THREE.TorusGeometry(CONFIG.GATE_RADIUS * 0.7, CONFIG.GATE_THICKNESS, 16, 32);
-                const ringMat = new THREE.MeshStandardMaterial({ 
-                    color: 0xff0000, 
-                    emissive: 0xff0000, 
-                    emissiveIntensity: 0.8,
-                    metalness: 0.3,
-                    roughness: 0.7
-                });
-                const ring = new THREE.Mesh(ringGeo, ringMat);
-                gate.add(ring);
-                
-                const ringLight = new THREE.PointLight(0xff0000, 500, 150);
-                gate.add(ringLight);
+                // Invisible marker - no visual geometry for rectangular level
+                // Gates are just position markers for progress tracking
                 
                 gate.position.copy(gatePositions[i]);
-                
-                // Orient gate
-                if (i < gatePositions.length - 1) {
-                    const direction = new THREE.Vector3()
-                        .subVectors(gatePositions[i + 1], gatePositions[i])
-                        .normalize();
-                    gate.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
-                }
                 
                 gate.userData = { 
                     passed: false, 
@@ -748,13 +729,14 @@
             }
             
             updateHUD();
+            updateStarsVisibility();
         }
 
         function createRectangularPanel(position, direction) {
             const group = new THREE.Group();
             const halfWidth = RECT_TUNNEL_CONFIG.TUNNEL_WIDTH / 2;
             const halfHeight = RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT / 2;
-            const thickness = 2;
+            const thickness = RECT_TUNNEL_CONFIG.PANEL_THICKNESS;
             
             // Create four sides
             const sides = {};
@@ -766,7 +748,7 @@
                 emissive: RECT_TUNNEL_CONFIG.COLORS.top,
                 emissiveIntensity: 0.4,
                 transparent: true,
-                opacity: 0.5,
+                opacity: 0.6,
                 side: THREE.DoubleSide
             });
             const topPanel = new THREE.Mesh(topGeo, topMat);
@@ -782,7 +764,7 @@
                 emissive: RECT_TUNNEL_CONFIG.COLORS.bottom,
                 emissiveIntensity: 0.4,
                 transparent: true,
-                opacity: 0.5,
+                opacity: 0.6,
                 side: THREE.DoubleSide
             });
             const bottomPanel = new THREE.Mesh(bottomGeo, bottomMat);
@@ -798,7 +780,7 @@
                 emissive: RECT_TUNNEL_CONFIG.COLORS.left,
                 emissiveIntensity: 0.4,
                 transparent: true,
-                opacity: 0.5,
+                opacity: 0.6,
                 side: THREE.DoubleSide
             });
             const leftPanel = new THREE.Mesh(leftGeo, leftMat);
@@ -814,7 +796,7 @@
                 emissive: RECT_TUNNEL_CONFIG.COLORS.right,
                 emissiveIntensity: 0.4,
                 transparent: true,
-                opacity: 0.5,
+                opacity: 0.6,
                 side: THREE.DoubleSide
             });
             const rightPanel = new THREE.Mesh(rightGeo, rightMat);
@@ -825,11 +807,11 @@
             
             // Add edge lines
             const edgeGeo = new THREE.EdgesGeometry(
-                new THREE.BoxGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT, 1)
+                new THREE.BoxGeometry(RECT_TUNNEL_CONFIG.TUNNEL_WIDTH, RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT, thickness)
             );
             const edgeMat = new THREE.LineBasicMaterial({ 
                 color: 0xffffff, 
-                opacity: 0.6, 
+                opacity: 0.8, 
                 transparent: true 
             });
             const edges = new THREE.LineSegments(edgeGeo, edgeMat);
@@ -878,22 +860,30 @@
             const halfWidth = RECT_TUNNEL_CONFIG.TUNNEL_WIDTH / 2;
             const halfHeight = RECT_TUNNEL_CONFIG.TUNNEL_HEIGHT / 2;
             
-            // Simple boundary check (we're not accounting for path curves yet, but good enough)
-            const hitWall = Math.abs(ship.position.x) > halfWidth || Math.abs(ship.position.y) > halfHeight;
+            let hitWall = false;
+            
+            // Check boundaries with small buffer
+            if (Math.abs(ship.position.x) > halfWidth - 5) {
+                hitWall = true;
+                // Push ship back inside with damping
+                ship.position.x = Math.sign(ship.position.x) * (halfWidth - 5);
+                velocityVec.x *= -0.3; // Bounce back
+            }
+            
+            if (Math.abs(ship.position.y) > halfHeight - 5) {
+                hitWall = true;
+                // Push ship back inside with damping
+                ship.position.y = Math.sign(ship.position.y) * (halfHeight - 5);
+                velocityVec.y *= -0.3; // Bounce back
+            }
             
             if (hitWall) {
-                // Reduce velocity
-                velocityVec.multiplyScalar(0.6);
+                // Reduce forward velocity slightly
+                velocityVec.z *= 0.8;
                 
-                // Camera shake
-                shakeDuration = 0.3;
-                
-                // Push ship back toward center
-                if (Math.abs(ship.position.x) > halfWidth) {
-                    ship.position.x = Math.sign(ship.position.x) * halfWidth;
-                }
-                if (Math.abs(ship.position.y) > halfHeight) {
-                    ship.position.y = Math.sign(ship.position.y) * halfHeight;
+                // Brief shake (only once per collision)
+                if (shakeDuration <= 0) {
+                    shakeDuration = 0.2;
                 }
             }
         }
@@ -1152,6 +1142,7 @@
             }
 
             updateHUD();
+            updateStarsVisibility();
         }
 
         function handleBullets() {
@@ -1522,10 +1513,22 @@
         }
 
         function checkLevelComplete() {
-            const allGatesPassed = gates.every(g => g.userData.passed);
+            const levelData = LEVELS[currentLevel];
             const allTargetsHit = targets.every(t => t.userData.hit);
             
-            if (allGatesPassed && allTargetsHit) {
+            let objectivesComplete = false;
+            
+            if (levelData.courseType === 'rectangular') {
+                // For rectangular: all panels must be passed and all targets hit
+                const allPanelsPassed = tunnelPanels.every(p => p.passed);
+                objectivesComplete = allPanelsPassed && allTargetsHit;
+            } else {
+                // For cylindrical: all gates must be passed and all targets hit
+                const allGatesPassed = gates.every(g => g.userData.passed);
+                objectivesComplete = allGatesPassed && allTargetsHit;
+            }
+            
+            if (objectivesComplete) {
                 gameActive = false;
                 if (timerInterval) clearInterval(timerInterval);
                 displayEndScreen();
@@ -1592,6 +1595,21 @@
             geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
             localStars = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.2, transparent: true, opacity: 0.7 }));
             scene.add(localStars);
+        }
+        
+        function updateStarsVisibility() {
+            const levelData = LEVELS[currentLevel];
+            const hideStars = levelData.courseType === 'rectangular';
+            
+            // Hide/show star fields
+            starFields.forEach(field => {
+                field.visible = !hideStars;
+            });
+            
+            // Dim local stars for rectangular level
+            if (localStars) {
+                localStars.material.opacity = hideStars ? 0.2 : 0.7;
+            }
         }
 
         function updateIndicators() {
@@ -1668,10 +1686,20 @@
             const levelData = LEVELS[currentLevel];
             const gatesComplete = gates.filter(g => g.userData.passed).length;
             const targetsComplete = targets.filter(t => t.userData.hit).length;
-            document.getElementById('gatesComplete').textContent = gatesComplete;
-            document.getElementById('gatesTotal').textContent = levelData.gates;
-            document.getElementById('targetsComplete').textContent = targetsComplete;
-            document.getElementById('targetsTotal').textContent = levelData.targets;
+            
+            // Update text based on level type
+            if (levelData.courseType === 'rectangular') {
+                const panelsPassed = tunnelPanels.filter(p => p.passed).length;
+                const panelsTotal = tunnelPanels.length;
+                document.getElementById('gatesComplete').textContent = panelsPassed;
+                document.getElementById('gatesTotal').textContent = panelsTotal;
+                document.getElementById('objectiveInfo').innerHTML = `Panels: <span id="gatesComplete">${panelsPassed}</span>/<span id="gatesTotal">${panelsTotal}</span> | Targets: <span id="targetsComplete">${targetsComplete}</span>/<span id="targetsTotal">${levelData.targets}</span>`;
+            } else {
+                document.getElementById('gatesComplete').textContent = gatesComplete;
+                document.getElementById('gatesTotal').textContent = levelData.gates;
+                document.getElementById('objectiveInfo').innerHTML = `Gates: <span id="gatesComplete">${gatesComplete}</span>/<span id="gatesTotal">${levelData.gates}</span> | Targets: <span id="targetsComplete">${targetsComplete}</span>/<span id="targetsTotal">${levelData.targets}</span>`;
+            }
+            
             document.getElementById('levelInfo').textContent = `LEVEL ${currentLevel}`;
         }
 
