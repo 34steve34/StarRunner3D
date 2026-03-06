@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.8</title>
+    <title>Star Runner 3D - v1.3.9</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.8</div>
+    <div id="version">v1.3.9</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -412,6 +412,8 @@
             updateBloom();
             
             if (ship && isInitialized && !isRespawning) {
+                applyKeyboardControls(); // Apply keyboard input continuously
+                
                 currentRotationVel.y = Math.max(-CONFIG.YAW_SENSITIVITY, Math.min(CONFIG.YAW_SENSITIVITY, currentRotationVel.y));
 
                 const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship.quaternion);
@@ -767,31 +769,32 @@
                 }
                 
                 // Distance-based opacity fade for unpassed panels (depth perception)
-                if (!panel.passed) {
+                if (!panel.passed && panel.group.visible) {
                     const distanceAhead = panel.zPosition - ship.position.z;
                     
-                    let opacity;
-                    // 5 control points for fine-tuned depth perception
+                    let targetOpacity;
+                    // 5 control points with MORE dramatic differences
                     if (distanceAhead < 160) {
                         // Panels 1-2: Full brightness
-                        opacity = 0.6;
+                        targetOpacity = 0.8;
                     } else if (distanceAhead < 480) {
-                        // Panels 3-6: Slight fade
-                        opacity = 0.5;
+                        // Panels 3-6: Noticeable fade
+                        targetOpacity = 0.5;
                     } else if (distanceAhead < 960) {
                         // Panels 7-12: Medium fade
-                        opacity = 0.35;
+                        targetOpacity = 0.28;
                     } else if (distanceAhead < 1600) {
-                        // Panels 13-20: Dimmer
-                        opacity = 0.22;
+                        // Panels 13-20: Much dimmer
+                        targetOpacity = 0.15;
                     } else {
-                        // Panels 21+: Very dim but still visible
-                        opacity = 0.12;
+                        // Panels 21+: Very dim
+                        targetOpacity = 0.06;
                     }
                     
                     // Apply opacity to all sides
                     Object.values(panel.sides).forEach(side => {
-                        side.material.opacity = opacity;
+                        side.material.opacity = targetOpacity;
+                        side.material.transparent = true;
                     });
                 }
                 
@@ -1989,10 +1992,6 @@
                 keyboardPitch = 0;
                 keyboardYaw = 0;
             }
-            
-            // Apply keyboard controls to relativeTilt
-            relativeTilt.p += keyboardPitch * 0.5;
-            relativeTilt.y += keyboardYaw * 0.5;
         });
         
         window.addEventListener('keyup', (e) => {
@@ -2003,6 +2002,15 @@
                 thrustValue = 0;
             }
         });
+        
+        // Apply keyboard controls continuously in animate loop
+        function applyKeyboardControls() {
+            if (!gameActive) return;
+            if (keyboardPitch !== 0 || keyboardYaw !== 0) {
+                relativeTilt.p += keyboardPitch * 0.5;
+                relativeTilt.y += keyboardYaw * 0.5;
+            }
+        }
 
 		// === GYRO MOTION HANDLER ===
 		const GYRO_PITCH_GAIN = 0.05;
