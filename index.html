@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.7</title>
+    <title>Star Runner 3D - v1.3.8</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.7</div>
+    <div id="version">v1.3.8</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -763,6 +763,35 @@
                     Object.values(panel.sides).forEach(side => {
                         side.material.color.setHex(RECT_TUNNEL_CONFIG.COLORS.passed);
                         side.material.opacity = 0.3;
+                    });
+                }
+                
+                // Distance-based opacity fade for unpassed panels (depth perception)
+                if (!panel.passed) {
+                    const distanceAhead = panel.zPosition - ship.position.z;
+                    
+                    let opacity;
+                    // 5 control points for fine-tuned depth perception
+                    if (distanceAhead < 160) {
+                        // Panels 1-2: Full brightness
+                        opacity = 0.6;
+                    } else if (distanceAhead < 480) {
+                        // Panels 3-6: Slight fade
+                        opacity = 0.5;
+                    } else if (distanceAhead < 960) {
+                        // Panels 7-12: Medium fade
+                        opacity = 0.35;
+                    } else if (distanceAhead < 1600) {
+                        // Panels 13-20: Dimmer
+                        opacity = 0.22;
+                    } else {
+                        // Panels 21+: Very dim but still visible
+                        opacity = 0.12;
+                    }
+                    
+                    // Apply opacity to all sides
+                    Object.values(panel.sides).forEach(side => {
+                        side.material.opacity = opacity;
                     });
                 }
                 
