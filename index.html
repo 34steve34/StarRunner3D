@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.3.9</title>
+    <title>Star Runner 3D - v1.4.0</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.3.9</div>
+    <div id="version">v1.4.0</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -137,6 +137,7 @@
                 <div class="difficulty-buttons">
                     <button class="difficulty-btn level-btn active" data-level="1">Level 1</button>
                     <button class="difficulty-btn level-btn" data-level="2" disabled style="opacity: 0.5;">Level 2 🔒</button>
+                    <button class="difficulty-btn level-btn" data-level="3" disabled style="opacity: 0.5;">Level 3 🔒</button>
                 </div>
             </div>
         </div>
@@ -202,6 +203,14 @@
                 star3: 120,
                 star2: 150,
                 star1: 180
+            },
+            3: {
+                courseType: 'spheres',
+                spheres: 3,
+                orbsPerSphere: [3, 4, 5],
+                star3: 180,
+                star2: 240,
+                star1: 300
             }
         };
 
@@ -230,6 +239,14 @@
         // === RECTANGULAR TUNNEL ===
         let tunnelPanels = [];
         let pathSegments = [];
+        
+        // === LEVEL 3 SPHERES ===
+        let largeSpheres = [];
+        let orbs = [];
+        let currentSphereIndex = -1;
+        let insideSphere = false;
+        let pullingIn = false;
+        let pullInProgress = 0;
         
         let audioCtx; // Web Audio API Context
         let timerInterval = null;
@@ -463,6 +480,10 @@
                     checkRectangularGateCollision();
                     checkRectangularWallCollision();
                     updateRectangularPanels();
+                } else if (levelData.courseType === 'spheres') {
+                    updateSphereShaders();
+                    checkSphereRamming();
+                    updateOrbs();
                 } else {
                     checkGateCollision();
                 }
@@ -885,12 +906,429 @@
             });
         }
 
+        // ====================== SPHERE LEVEL SYSTEM ======================
+        const SPHERE_CONFIG = {
+            LARGE_SPHERE_RADIUS: 150,
+            BUBBLE_RADIUS: 400,
+            ORB_RADIUS: 15,
+            RAM_ANGLE_TOLERANCE: 20 * (Math.PI / 180), // 20 degrees in radians
+            RAM_SPEED_THRESHOLD: 1.2, // Must be near full speed
+            BOUNCE_DISTANCE: 300, // 5-6 ship lengths
+            PULL_IN_DURATION: 2.0, // 2 seconds
+            ORB_SPEED: 0.8,
+            ORB_IMPULSE_INTERVAL: 3000 // 3 seconds between orb impulses
+        };
+
+        function spawnSpheresLevel() {
+            const levelData = LEVELS[currentLevel];
+            
+            // Clear previous level
+            gates.forEach(g => scene.remove(g));
+            gates.length = 0;
+            targets.forEach(t => scene.remove(t));
+            targets.length = 0;
+            debris.forEach(d => scene.remove(d));
+            debris.length = 0;
+            tunnelPanels.forEach(p => scene.remove(p.group));
+            tunnelPanels.length = 0;
+            largeSpheres.forEach(s => scene.remove(s.mesh));
+            largeSpheres.length = 0;
+            orbs.forEach(o => scene.remove(o.mesh));
+            orbs.length = 0;
+            
+            currentSphereIndex = -1;
+            insideSphere = false;
+            pullingIn = false;
+            
+            triggerBloom();
+            
+            // Create 3 large spheres at different distances
+            const spherePositions = [
+                new THREE.Vector3(0, 0, -800),   // Nearest
+                new THREE.Vector3(200, -100, -1800), // Medium distance, offset
+                new THREE.Vector3(-150, 150, -3200)  // Distant, offset
+            ];
+            
+            spherePositions.forEach((pos, index) => {
+                const sphereGroup = new THREE.Group();
+                
+                // Create energy field visual (not solid color)
+                const sphereGeo = new THREE.SphereGeometry(SPHERE_CONFIG.LARGE_SPHERE_RADIUS, 32, 32);
+                const sphereMat = new THREE.ShaderMaterial({
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    uniforms: {
+                        time: { value: 0 }
+                    },
+                    vertexShader: `
+                        varying vec3 vNormal;
+                        varying vec3 vPosition;
+                        void main() {
+                            vNormal = normalize(normalMatrix * normal);
+                            vPosition = position;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform float time;
+                        varying vec3 vNormal;
+                        varying vec3 vPosition;
+                        void main() {
+                            float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
+                            vec3 color1 = vec3(0.2, 0.8, 1.0); // Cyan
+                            vec3 color2 = vec3(1.0, 0.3, 0.8); // Magenta
+                            vec3 color = mix(color1, color2, sin(time + vPosition.y * 0.01) * 0.5 + 0.5);
+                            float alpha = fresnel * 0.6 + 0.2;
+                            gl_FragColor = vec4(color, alpha);
+                        }
+                    `
+                });
+                
+                const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+                sphereGroup.add(sphereMesh);
+                
+                // Add glow light
+                const light = new THREE.PointLight(0x00ffff, 2000, 400);
+                sphereGroup.add(light);
+                
+                sphereGroup.position.copy(pos);
+                scene.add(sphereGroup);
+                
+                largeSpheres.push({
+                    mesh: sphereGroup,
+                    position: pos.clone(),
+                    material: sphereMat,
+                    active: true,
+                    index: index
+                });
+            });
+            
+            updateHUD();
+            updateStarsVisibility();
+        }
+
+        function updateSphereShaders() {
+            largeSpheres.forEach(sphere => {
+                if (sphere.material && sphere.material.uniforms) {
+                    sphere.material.uniforms.time.value = performance.now() * 0.001;
+                }
+            });
+        }
+
+        function checkSphereRamming() {
+            if (!ship || isRespawning || pullingIn || insideSphere) return;
+            
+            largeSpheres.forEach(sphere => {
+                if (!sphere.active) return;
+                
+                const distToSphere = ship.position.distanceTo(sphere.position);
+                const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion).normalize();
+                const toSphere = new THREE.Vector3().subVectors(sphere.position, ship.position).normalize();
+                const angle = Math.acos(Math.max(-1, Math.min(1, shipForward.dot(toSphere))));
+                const speed = velocityVec.length();
+                
+                // Check if close enough to ram
+                if (distToSphere < SPHERE_CONFIG.LARGE_SPHERE_RADIUS + 50) {
+                    // Check ram conditions
+                    if (angle < SPHERE_CONFIG.RAM_ANGLE_TOLERANCE && speed > SPHERE_CONFIG.RAM_SPEED_THRESHOLD) {
+                        // Successful ram!
+                        startPullIn(sphere);
+                    } else {
+                        // Failed ram - bounce back
+                        const bounceDir = new THREE.Vector3().subVectors(ship.position, sphere.position).normalize();
+                        ship.position.add(bounceDir.multiplyScalar(SPHERE_CONFIG.BOUNCE_DISTANCE));
+                        velocityVec.multiplyScalar(-0.5); // Reverse and dampen velocity
+                        shakeDuration = 0.5;
+                    }
+                }
+            });
+        }
+
+        function startPullIn(sphere) {
+            pullingIn = true;
+            pullInProgress = 0;
+            currentSphereIndex = sphere.index;
+            
+            // Play rumble sound
+            playPullInSound();
+            
+            const pullInInterval = setInterval(() => {
+                if (!pullingIn) {
+                    clearInterval(pullInInterval);
+                    return;
+                }
+                
+                pullInProgress += 0.016 / SPHERE_CONFIG.PULL_IN_DURATION; // Assuming 60fps
+                
+                // Shake ship
+                shakeDuration = 0.1;
+                
+                // Pull ship toward sphere center
+                const toCenter = new THREE.Vector3().subVectors(sphere.position, ship.position);
+                ship.position.add(toCenter.multiplyScalar(0.02));
+                
+                // Slow down ship
+                velocityVec.multiplyScalar(0.95);
+                
+                if (pullInProgress >= 1.0) {
+                    clearInterval(pullInInterval);
+                    enterSphere(sphere);
+                }
+            }, 16);
+        }
+
+        function playPullInSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            
+            // Low rumble
+            const rumble = audioCtx.createOscillator();
+            const rumbleGain = audioCtx.createGain();
+            rumble.type = 'sine';
+            rumble.frequency.setValueAtTime(40, t);
+            rumble.frequency.exponentialRampToValueAtTime(60, t + 2.0);
+            rumbleGain.gain.setValueAtTime(0.8, t);
+            rumbleGain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+            
+            rumble.connect(rumbleGain).connect(audioCtx.destination);
+            rumble.start(t);
+            rumble.stop(t + 2.1);
+        }
+
+        function enterSphere(sphere) {
+            pullingIn = false;
+            insideSphere = true;
+            
+            // Position ship at center of sphere
+            ship.position.copy(sphere.position);
+            velocityVec.set(0, 0, 0);
+            
+            // Create bubble walls
+            const bubbleGeo = new THREE.SphereGeometry(SPHERE_CONFIG.BUBBLE_RADIUS, 32, 32);
+            const bubbleMat = new THREE.MeshBasicMaterial({
+                color: 0x4488ff,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.BackSide // See from inside
+            });
+            const bubble = new THREE.Mesh(bubbleGeo, bubbleMat);
+            bubble.position.copy(sphere.position);
+            scene.add(bubble);
+            
+            sphere.bubble = bubble;
+            
+            // Spawn orbs
+            const levelData = LEVELS[currentLevel];
+            const numOrbs = levelData.orbsPerSphere[sphere.index];
+            
+            for (let i = 0; i < numOrbs; i++) {
+                const orbGeo = new THREE.SphereGeometry(SPHERE_CONFIG.ORB_RADIUS, 16, 16);
+                const orbMat = new THREE.MeshStandardMaterial({
+                    color: 0xffff00,
+                    emissive: 0xffff00,
+                    emissiveIntensity: 1.0
+                });
+                const orbMesh = new THREE.Mesh(orbGeo, orbMat);
+                
+                // Random position inside bubble
+                const angle1 = Math.random() * Math.PI * 2;
+                const angle2 = Math.random() * Math.PI;
+                const radius = Math.random() * (SPHERE_CONFIG.BUBBLE_RADIUS - 100);
+                
+                orbMesh.position.set(
+                    sphere.position.x + radius * Math.sin(angle2) * Math.cos(angle1),
+                    sphere.position.y + radius * Math.sin(angle2) * Math.sin(angle1),
+                    sphere.position.z + radius * Math.cos(angle2)
+                );
+                
+                const orbLight = new THREE.PointLight(0xffff00, 800, 150);
+                orbMesh.add(orbLight);
+                
+                scene.add(orbMesh);
+                
+                orbs.push({
+                    mesh: orbMesh,
+                    velocity: new THREE.Vector3(),
+                    health: 3,
+                    maxHealth: 3,
+                    sphereIndex: sphere.index,
+                    bubbleCenter: sphere.position.clone(),
+                    lastImpulseTime: Date.now() + Math.random() * SPHERE_CONFIG.ORB_IMPULSE_INTERVAL
+                });
+            }
+        }
+
+        function updateOrbs() {
+            if (!insideSphere) return;
+            
+            const now = Date.now();
+            const activeOrbs = orbs.filter(o => o.sphereIndex === currentSphereIndex);
+            
+            // Find orb that should get next impulse (alternating)
+            let nextOrbToImpulse = null;
+            let oldestImpulseTime = Infinity;
+            
+            activeOrbs.forEach(orb => {
+                if (now - orb.lastImpulseTime > SPHERE_CONFIG.ORB_IMPULSE_INTERVAL) {
+                    if (orb.lastImpulseTime < oldestImpulseTime) {
+                        oldestImpulseTime = orb.lastImpulseTime;
+                        nextOrbToImpulse = orb;
+                    }
+                }
+            });
+            
+            // Give impulse to one orb at a time
+            if (nextOrbToImpulse) {
+                const toShip = new THREE.Vector3().subVectors(ship.position, nextOrbToImpulse.mesh.position).normalize();
+                nextOrbToImpulse.velocity.copy(toShip.multiplyScalar(SPHERE_CONFIG.ORB_SPEED));
+                nextOrbToImpulse.lastImpulseTime = now;
+            }
+            
+            orbs.forEach(orb => {
+                // Move orb
+                orb.mesh.position.add(orb.velocity);
+                
+                // Bounce off bubble walls
+                const distFromCenter = orb.mesh.position.distanceTo(orb.bubbleCenter);
+                if (distFromCenter > SPHERE_CONFIG.BUBBLE_RADIUS - SPHERE_CONFIG.ORB_RADIUS) {
+                    // Reflect velocity
+                    const normal = new THREE.Vector3().subVectors(orb.mesh.position, orb.bubbleCenter).normalize();
+                    orb.velocity.reflect(normal);
+                    
+                    // Push back inside
+                    orb.mesh.position.copy(orb.bubbleCenter).add(normal.multiplyScalar(SPHERE_CONFIG.BUBBLE_RADIUS - SPHERE_CONFIG.ORB_RADIUS - 1));
+                }
+                
+                // Check collision with ship
+                if (ship && orb.mesh.position.distanceTo(ship.position) < SPHERE_CONFIG.ORB_RADIUS + 20) {
+                    // Ship hit by orb - respawn outside sphere
+                    respawnFromSphere();
+                }
+            });
+        }
+
+        function respawnFromSphere() {
+            if (isRespawning) return;
+            isRespawning = true;
+            
+            playExplosionSound(30);
+            createExplosion(ship.position);
+            shakeDuration = 1.0;
+            
+            ship.visible = false;
+            velocityVec.set(0, 0, 0);
+            thrustValue = 0;
+            
+            setTimeout(() => {
+                // Respawn outside the sphere
+                const sphere = largeSpheres[currentSphereIndex];
+                ship.position.set(sphere.position.x, sphere.position.y, sphere.position.z + SPHERE_CONFIG.LARGE_SPHERE_RADIUS + 200);
+                ship.visible = true;
+                isRespawning = false;
+                
+                // Exit sphere
+                exitSphere(false);
+                
+                triggerBloom();
+            }, CONFIG.RESPAWN_TIME);
+        }
+
+        function exitSphere(completed) {
+            insideSphere = false;
+            
+            const sphere = largeSpheres[currentSphereIndex];
+            
+            // Remove bubble
+            if (sphere.bubble) {
+                scene.remove(sphere.bubble);
+                sphere.bubble = null;
+            }
+            
+            // Remove orbs
+            orbs.forEach(orb => {
+                if (orb.sphereIndex === currentSphereIndex) {
+                    scene.remove(orb.mesh);
+                }
+            });
+            orbs = orbs.filter(orb => orb.sphereIndex !== currentSphereIndex);
+            
+            if (completed) {
+                // Dissipate sphere like fading mist
+                const fadeDuration = 2000;
+                const startTime = Date.now();
+                
+                const fadeInterval = setInterval(() => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = elapsed / fadeDuration;
+                    
+                    if (progress >= 1.0) {
+                        scene.remove(sphere.mesh);
+                        sphere.active = false;
+                        clearInterval(fadeInterval);
+                        
+                        // Check if level complete
+                        checkLevelComplete();
+                    } else {
+                        // Fade out
+                        sphere.mesh.children[0].material.opacity = (1 - progress) * 0.6;
+                        sphere.mesh.children[1].intensity = (1 - progress) * 2000;
+                    }
+                }, 16);
+            } else {
+                // Restore orbs for this sphere (reset)
+                // They'll be recreated when player rams again
+            }
+        }
+
+        function handleOrbShooting() {
+            if (!insideSphere) return;
+            
+            bullets.forEach((b, bi) => {
+                orbs.forEach((orb, oi) => {
+                    if (orb.sphereIndex === currentSphereIndex && b.position.distanceTo(orb.mesh.position) < SPHERE_CONFIG.ORB_RADIUS + 10) {
+                        orb.health--;
+                        
+                        // Update orb appearance based on health
+                        const brightness = orb.health / orb.maxHealth;
+                        const color = new THREE.Color().setHSL(0.16, 1.0, brightness * 0.5); // Yellow to dark
+                        orb.mesh.material.color.copy(color);
+                        orb.mesh.material.emissive.copy(color);
+                        orb.mesh.material.emissiveIntensity = brightness;
+                        
+                        playExplosionSound(10);
+                        
+                        // Remove bullet
+                        scene.remove(b);
+                        bullets.splice(bi, 1);
+                        
+                        // Check if orb is dead
+                        if (orb.health <= 0) {
+                            createExplosion(orb.mesh.position);
+                            scene.remove(orb.mesh);
+                            orbs.splice(oi, 1);
+                            
+                            // Check if all orbs in this sphere are dead
+                            const remainingOrbs = orbs.filter(o => o.sphereIndex === currentSphereIndex);
+                            if (remainingOrbs.length === 0) {
+                                exitSphere(true);
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
         function spawnLevel() {
             const levelData = LEVELS[currentLevel];
             
             // Route to correct level type
             if (levelData.courseType === 'rectangular') {
                 spawnRectangularTunnelLevel();
+                return;
+            }
+            
+            if (levelData.courseType === 'spheres') {
+                spawnSpheresLevel();
                 return;
             }
             
@@ -1120,6 +1558,9 @@
         }
 
         function handleBullets() {
+            // Handle orb shooting for level 3
+            handleOrbShooting();
+            
             bullets.forEach((b, bi) => {
                 b.position.add(b.userData.velocity);
                 targets.forEach((t, ti) => {
@@ -1494,6 +1935,10 @@
                 // For rectangular: all panels must be passed (no targets)
                 const allPanelsPassed = tunnelPanels.every(p => p.passed);
                 objectivesComplete = allPanelsPassed;
+            } else if (levelData.courseType === 'spheres') {
+                // For spheres: all spheres must be cleared
+                const allSpheresCleared = largeSpheres.every(s => !s.active);
+                objectivesComplete = allSpheresCleared;
             } else {
                 // For cylindrical: all gates must be passed and all targets hit
                 const allGatesPassed = gates.every(g => g.userData.passed);
@@ -1665,6 +2110,15 @@
                 const panelsPassed = tunnelPanels.filter(p => p.passed).length;
                 const panelsTotal = tunnelPanels.length;
                 document.getElementById('objectiveInfo').innerHTML = `Panels: <span id="gatesComplete">${panelsPassed}</span>/<span id="gatesTotal">${panelsTotal}</span>`;
+            } else if (levelData.courseType === 'spheres') {
+                const spheresCleared = largeSpheres.filter(s => !s.active).length;
+                const spheresTotal = largeSpheres.length;
+                const orbsRemaining = orbs.filter(o => o.sphereIndex === currentSphereIndex).length;
+                if (insideSphere) {
+                    document.getElementById('objectiveInfo').innerHTML = `Spheres: ${spheresCleared}/${spheresTotal} | Orbs: ${orbsRemaining}`;
+                } else {
+                    document.getElementById('objectiveInfo').innerHTML = `Spheres: ${spheresCleared}/${spheresTotal}`;
+                }
             } else {
                 document.getElementById('gatesComplete').textContent = gatesComplete;
                 document.getElementById('gatesTotal').textContent = levelData.gates;
