@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.4.4</title>
+    <title>Star Runner 3D - v1.4.5</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.4.4</div>
+    <div id="version">v1.4.5</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -917,7 +917,7 @@
             BOUNCE_DISTANCE: 300, // 5-6 ship lengths
             PULL_IN_DURATION: 2.0, // 2 seconds
             ORB_SPEED: 0.56, // Reduced by 30% from 0.8
-            ORB_IMPULSE_INTERVAL: 3000 // 3 seconds between orb impulses
+            ORB_IMPULSE_INTERVAL: 5000 // 5 seconds between orb impulses
         };
 
         function spawnSpheresLevel() {
@@ -1022,9 +1022,11 @@
             largeSpheres.forEach(sphere => {
                 if (!sphere.active) return;
                 
-                const distToSphere = ship.position.distanceTo(sphere.position);
+                // Use the actual mesh position, not the stored position
+                const spherePos = sphere.mesh.position;
+                const distToSphere = ship.position.distanceTo(spherePos);
                 const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion).normalize();
-                const toSphere = new THREE.Vector3().subVectors(sphere.position, ship.position).normalize();
+                const toSphere = new THREE.Vector3().subVectors(spherePos, ship.position).normalize();
                 const angle = Math.acos(Math.max(-1, Math.min(1, shipForward.dot(toSphere))));
                 const speed = velocityVec.length();
                 
@@ -1036,7 +1038,7 @@
                         startPullIn(sphere);
                     } else {
                         // Failed ram - bounce back
-                        const bounceDir = new THREE.Vector3().subVectors(ship.position, sphere.position).normalize();
+                        const bounceDir = new THREE.Vector3().subVectors(ship.position, spherePos).normalize();
                         ship.position.add(bounceDir.multiplyScalar(SPHERE_CONFIG.BOUNCE_DISTANCE));
                         velocityVec.multiplyScalar(-0.5); // Reverse and dampen velocity
                         shakeDuration = 0.5;
@@ -1064,8 +1066,8 @@
                 // Shake ship
                 shakeDuration = 0.1;
                 
-                // Pull ship toward sphere center
-                const toCenter = new THREE.Vector3().subVectors(sphere.position, ship.position);
+                // Pull ship toward sphere center (use mesh position)
+                const toCenter = new THREE.Vector3().subVectors(sphere.mesh.position, ship.position);
                 ship.position.add(toCenter.multiplyScalar(0.02));
                 
                 // Slow down ship
@@ -1100,8 +1102,8 @@
             pullingIn = false;
             insideSphere = true;
             
-            // Store the bubble center for collision detection
-            const bubbleCenter = sphere.position.clone();
+            // Store the bubble center from the actual mesh position (not the stored position)
+            const bubbleCenter = sphere.mesh.position.clone();
             
             // Position ship at center of bubble
             ship.position.copy(bubbleCenter);
@@ -1243,13 +1245,13 @@
             if (!sphere || !sphere.active || !sphere.bubbleCenter) return;
             
             const distFromCenter = ship.position.distanceTo(sphere.bubbleCenter);
-            const maxDistance = SPHERE_CONFIG.BUBBLE_RADIUS - 60; // Larger buffer
+            const maxDistance = SPHERE_CONFIG.BUBBLE_RADIUS - 120; // Much tighter - keep away from walls
             
             // Ship collision with bubble wall - very aggressive containment
             if (distFromCenter > maxDistance) {
                 // Push ship back inside aggressively
                 const normal = new THREE.Vector3().subVectors(ship.position, sphere.bubbleCenter).normalize();
-                ship.position.copy(sphere.bubbleCenter).add(normal.multiplyScalar(maxDistance - 10));
+                ship.position.copy(sphere.bubbleCenter).add(normal.multiplyScalar(maxDistance - 20));
                 
                 // Kill all velocity to prevent escaping
                 velocityVec.set(0, 0, 0);
