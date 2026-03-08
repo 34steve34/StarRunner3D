@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.1</title>
+    <title>Star Runner 3D - v1.5.2</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.1</div>
+    <div id="version">v1.5.2</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -235,6 +235,17 @@
 		let relativeTilt = { p: 0, y: 0 };
 		let lastMotionTime = 0;
 		let currentRotationRate = { alpha: 0, beta: 0, gamma: 0 };
+		
+		// === GRAVITY-BASED AUTO-CORRECTION ===
+		// When user presses ZERO, we store the phone's tilt orientation (2D gravity signature).
+		// If the phone returns to this same tilt AND remains stable for 2+ seconds,
+		// we gently correct pitch/roll drift. This helps combat gyro drift without
+		// interfering with intentional player movements.
+		let zeroGravitySignature = null; // Stores [x, y] normalized gravity at ZERO press
+		let gravityMatchDuration = 0; // How long current gravity has matched zero signature
+		const GRAVITY_MATCH_THRESHOLD = 0.98; // Dot product threshold (very close match)
+		const GRAVITY_MATCH_REQUIRED_TIME = 2.0; // Seconds of sustained match before correcting
+		const ROTATION_RATE_THRESHOLD = 5; // Degrees/sec - below this is "stable"
         
         // === RECTANGULAR TUNNEL ===
         let tunnelPanels = [];
@@ -1400,6 +1411,7 @@
             
             if (completed) {
                 // Dissipate sphere like fading mist
+                // Keep the sphere hidden during fade to prevent it appearing next to player
                 const fadeDuration = 2000;
                 const startTime = Date.now();
                 
@@ -1418,8 +1430,9 @@
                         // Check if level complete
                         checkLevelComplete();
                     } else {
-                        // Fade out (make visible first)
-                        sphere.mesh.visible = true;
+                        // Fade out opacity and light intensity without making mesh visible
+                        // The sphere stays hidden (invisible) but we still fade its properties
+                        // in case it somehow becomes visible during the fade
                         sphere.mesh.children[0].material.opacity = (1 - progress) * 0.6;
                         sphere.mesh.children[1].intensity = (1 - progress) * 2000;
                     }
@@ -2593,7 +2606,36 @@
 		document.getElementById('zeroBtn').addEventListener('touchstart', (e) => { 
 			e.preventDefault(); 
 			e.stopPropagation();
+			
+			// Reset relative tilt to zero
 			relativeTilt = { p: 0, y: 0 };
+			
+			// Store current gravity signature for auto-correction
+			// We capture the phone's current tilt orientation as the "zero" reference
+			// This allows us to detect when the phone returns to this orientation later
+			// and gently correct any accumulated gyro drift
+			if (window.DeviceMotionEvent) {
+				// Request a one-time motion event to capture current gravity
+				const captureGravity = (e) => {
+					if (e.accelerationIncludingGravity) {
+						const accel = e.accelerationIncludingGravity;
+						const gravityX = accel.x || 0;
+						const gravityY = accel.y || 0;
+						const magnitude = Math.sqrt(gravityX * gravityX + gravityY * gravityY);
+						
+						// Store normalized 2D gravity signature (direction only, not magnitude)
+						if (magnitude > 0.1) {
+							zeroGravitySignature = [gravityX / magnitude, gravityY / magnitude];
+							console.log('Zero gravity signature stored:', zeroGravitySignature);
+						}
+					}
+					window.removeEventListener('devicemotion', captureGravity);
+				};
+				window.addEventListener('devicemotion', captureGravity);
+			}
+			
+			// Reset match duration
+			gravityMatchDuration = 0;
 		}, {passive: false});
 
         // === KEYBOARD CONTROLS FOR LAPTOP TESTING ===
@@ -2659,6 +2701,8 @@
 		        const now = performance.now();
 		        if (lastMotionTime > 0) {
 		            const dt = (now - lastMotionTime) / 1000;
+		            
+		            // Integrate rotation rates to get relative tilt
 		            let pitchRate = (e.rotationRate.beta || 0) * (180 / Math.PI);
 		            let yawRate   = -(e.rotationRate.gamma || 0) * (180 / Math.PI);
 		            if (Math.abs(pitchRate) > RATE_DEADZONE) {
@@ -2667,9 +2711,54 @@
 		            if (Math.abs(yawRate) > RATE_DEADZONE) {
 		                relativeTilt.y += yawRate * dt * GYRO_YAW_GAIN;
 		            }
+		            
+		            // Clamp pitch to prevent extreme values
 		            relativeTilt.p = Math.max(-95, Math.min(95, relativeTilt.p));
+		            
+		            // Wrap yaw to -180 to +180 range
 		            if (relativeTilt.y > 180) relativeTilt.y -= 360;
 		            if (relativeTilt.y < -180) relativeTilt.y += 360;
+		            
+		            // === GRAVITY-BASED AUTO-CORRECTION ===
+		            // Only attempt correction if we have a zero reference and acceleration data
+		            if (zeroGravitySignature && e.accelerationIncludingGravity) {
+		                const accel = e.accelerationIncludingGravity;
+		                
+		                // Extract current gravity 2D signature (normalized X and Y components)
+		                // We ignore Z because vertical acceleration doesn't affect tilt orientation
+		                const currentGravityX = accel.x || 0;
+		                const currentGravityY = accel.y || 0;
+		                const currentMagnitude = Math.sqrt(currentGravityX * currentGravityX + currentGravityY * currentGravityY);
+		                
+		                // Normalize to get direction only (ignore magnitude variations)
+		                const currentNormX = currentMagnitude > 0.1 ? currentGravityX / currentMagnitude : 0;
+		                const currentNormY = currentMagnitude > 0.1 ? currentGravityY / currentMagnitude : 0;
+		                
+		                // Calculate how closely current gravity matches zero signature (dot product)
+		                const dotProduct = currentNormX * zeroGravitySignature[0] + currentNormY * zeroGravitySignature[1];
+		                
+		                // Check if phone is stable (low rotation rates = not actively maneuvering)
+		                const isStable = Math.abs(pitchRate) < ROTATION_RATE_THRESHOLD && 
+		                               Math.abs(yawRate) < ROTATION_RATE_THRESHOLD;
+		                
+		                // If gravity matches zero orientation AND phone is stable, accumulate match time
+		                if (dotProduct > GRAVITY_MATCH_THRESHOLD && isStable) {
+		                    gravityMatchDuration += dt;
+		                    
+		                    // After sustained match (2+ seconds), apply gentle drift correction
+		                    // We don't snap to zero - instead we gradually reduce drift
+		                    // This prevents fighting intentional movements while correcting accumulated error
+		                    if (gravityMatchDuration > GRAVITY_MATCH_REQUIRED_TIME) {
+		                        // Gentle exponential decay toward zero (5% correction per frame)
+		                        relativeTilt.p *= 0.95;
+		                        relativeTilt.y *= 0.95;
+		                    }
+		                } else {
+		                    // Reset match duration if gravity doesn't match or phone is moving
+		                    // This ensures we only correct during sustained, stable returns to zero orientation
+		                    gravityMatchDuration = 0;
+		                }
+		            }
 		        }
 		        lastMotionTime = now;
 		    }
