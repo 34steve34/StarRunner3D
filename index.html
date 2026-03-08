@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.0</title>
+    <title>Star Runner 3D - v1.5.1</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.0</div>
+    <div id="version">v1.5.1</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -121,7 +121,7 @@
             <div id="splashInfo">
                 <h2>STAR RUNNER 3D</h2>
                 <div id="levelInstructions" style="margin: 15px 0; font-size: 14px; color: #ddd; line-height: 1.6;">
-                    <div style="margin: 8px 0;">� <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
+                    <div style="margin: 8px 0;">🌟 <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
                     <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
@@ -247,6 +247,8 @@
         let insideSphere = false;
         let pullingIn = false;
         let pullInProgress = 0;
+        let lastGlobalImpulseTime = 0; // Track when ANY orb last got an impulse
+        let nextOrbIndex = 0; // Track which orb gets the next impulse
         
         let audioCtx; // Web Audio API Context
         let timerInterval = null;
@@ -1130,6 +1132,7 @@
             // Spawn orbs
             const levelData = LEVELS[currentLevel];
             const numOrbs = levelData.orbsPerSphere[sphere.index];
+            const spawnedOrbPositions = []; // Track positions to ensure spacing
             
             for (let i = 0; i < numOrbs; i++) {
                 const orbGeo = new THREE.SphereGeometry(SPHERE_CONFIG.ORB_RADIUS, 16, 16);
@@ -1197,12 +1200,14 @@
                 
                 const orbMesh = new THREE.Mesh(orbGeo, orbMat);
                 
-                // Random position inside bubble, but NOT near ship (min 150 units away)
+                // Random position inside bubble, spaced away from ship AND other orbs
                 let validPosition = false;
                 let attempts = 0;
                 let orbPosition;
+                const MIN_DISTANCE_FROM_SHIP = 150;
+                const MIN_DISTANCE_BETWEEN_ORBS = 100; // Keep orbs at least 100 units apart
                 
-                while (!validPosition && attempts < 50) {
+                while (!validPosition && attempts < 100) {
                     const angle1 = Math.random() * Math.PI * 2;
                     const angle2 = Math.random() * Math.PI;
                     const radius = 150 + Math.random() * (SPHERE_CONFIG.BUBBLE_RADIUS - 200); // Keep away from walls and center
@@ -1213,10 +1218,26 @@
                         bubbleCenter.z + radius * Math.cos(angle2)
                     );
                     
-                    // Check distance from ship (which is at sphere center)
-                    if (orbPosition.distanceTo(ship.position) > 150) {
-                        validPosition = true;
+                    // Check distance from ship
+                    if (orbPosition.distanceTo(ship.position) < MIN_DISTANCE_FROM_SHIP) {
+                        attempts++;
+                        continue;
                     }
+                    
+                    // Check distance from other orbs
+                    let tooCloseToOtherOrb = false;
+                    for (let j = 0; j < spawnedOrbPositions.length; j++) {
+                        if (orbPosition.distanceTo(spawnedOrbPositions[j]) < MIN_DISTANCE_BETWEEN_ORBS) {
+                            tooCloseToOtherOrb = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!tooCloseToOtherOrb) {
+                        validPosition = true;
+                        spawnedOrbPositions.push(orbPosition.clone());
+                    }
+                    
                     attempts++;
                 }
                 
@@ -1235,10 +1256,13 @@
                     health: 3,
                     maxHealth: 3,
                     sphereIndex: sphere.index,
-                    bubbleCenter: bubbleCenter.clone(), // Use the stored bubble center
-                    lastImpulseTime: Date.now() + Math.random() * SPHERE_CONFIG.ORB_IMPULSE_INTERVAL
+                    bubbleCenter: bubbleCenter.clone() // Use the stored bubble center
                 });
             }
+            
+            // Reset global impulse timer when entering sphere
+            lastGlobalImpulseTime = Date.now();
+            nextOrbIndex = 0;
         }
 
         function checkBubbleWallCollision() {
@@ -1283,24 +1307,20 @@
             const now = Date.now();
             const activeOrbs = orbs.filter(o => o.sphereIndex === currentSphereIndex);
             
-            // Find orb that should get next impulse (alternating)
-            let nextOrbToImpulse = null;
-            let oldestImpulseTime = Infinity;
+            if (activeOrbs.length === 0) return;
             
-            activeOrbs.forEach(orb => {
-                if (now - orb.lastImpulseTime > SPHERE_CONFIG.ORB_IMPULSE_INTERVAL) {
-                    if (orb.lastImpulseTime < oldestImpulseTime) {
-                        oldestImpulseTime = orb.lastImpulseTime;
-                        nextOrbToImpulse = orb;
-                    }
+            // Check if it's time to give an impulse (every 5 seconds globally)
+            if (now - lastGlobalImpulseTime > SPHERE_CONFIG.ORB_IMPULSE_INTERVAL) {
+                // Give impulse to the next orb in rotation
+                const orbToImpulse = activeOrbs[nextOrbIndex % activeOrbs.length];
+                
+                if (orbToImpulse) {
+                    const toShip = new THREE.Vector3().subVectors(ship.position, orbToImpulse.mesh.position).normalize();
+                    orbToImpulse.velocity.copy(toShip.multiplyScalar(SPHERE_CONFIG.ORB_SPEED));
+                    
+                    lastGlobalImpulseTime = now;
+                    nextOrbIndex++;
                 }
-            });
-            
-            // Give impulse to one orb at a time
-            if (nextOrbToImpulse) {
-                const toShip = new THREE.Vector3().subVectors(ship.position, nextOrbToImpulse.mesh.position).normalize();
-                nextOrbToImpulse.velocity.copy(toShip.multiplyScalar(SPHERE_CONFIG.ORB_SPEED));
-                nextOrbToImpulse.lastImpulseTime = now;
             }
             
             orbs.forEach(orb => {
@@ -2336,7 +2356,7 @@
             
             if (level === 1) {
                 instructionsDiv.innerHTML = `
-                    <div style="margin: 8px 0;">� <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
+                    <div style="margin: 8px 0;">🌟 <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
                     <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
