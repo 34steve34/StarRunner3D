@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.4.6</title>
+    <title>Star Runner 3D - v1.4.7</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.4.6</div>
+    <div id="version">v1.4.7</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -120,7 +120,7 @@
         <div id="startRow">
             <div id="splashInfo">
                 <h2>STAR RUNNER 3D</h2>
-                <div style="margin: 15px 0; font-size: 14px; color: #ddd; line-height: 1.6;">
+                <div id="levelInstructions" style="margin: 15px 0; font-size: 14px; color: #ddd; line-height: 1.6;">
                     <div style="margin: 8px 0;">🔴 <span style="color: #ff4444;">Red Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
@@ -1112,12 +1112,12 @@
             ship.position.copy(bubbleCenter);
             velocityVec.set(0, 0, 0);
             
-            // Create bubble walls
+            // Create bubble walls with more visible color tint
             const bubbleGeo = new THREE.SphereGeometry(SPHERE_CONFIG.BUBBLE_RADIUS, 32, 32);
             const bubbleMat = new THREE.MeshBasicMaterial({
                 color: 0x4488ff,
                 transparent: true,
-                opacity: 0.15,
+                opacity: 0.25, // Increased from 0.15 for better visibility
                 side: THREE.BackSide // See from inside
             });
             const bubble = new THREE.Mesh(bubbleGeo, bubbleMat);
@@ -1390,6 +1390,9 @@
                         scene.remove(sphere.mesh);
                         sphere.active = false;
                         clearInterval(fadeInterval);
+                        
+                        // Update HUD to show sphere cleared
+                        updateHUD();
                         
                         // Check if level complete
                         checkLevelComplete();
@@ -2321,8 +2324,38 @@
                 currentLevel = level;
                 levelButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
+                
+                // Update instructions based on level
+                updateLevelInstructions(level);
             });
         });
+        
+        function updateLevelInstructions(level) {
+            const instructionsDiv = document.getElementById('levelInstructions');
+            
+            if (level === 1) {
+                instructionsDiv.innerHTML = `
+                    <div style="margin: 8px 0;">🔴 <span style="color: #ff4444;">Red Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
+                    <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
+                    <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
+                    <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
+                `;
+            } else if (level === 2) {
+                instructionsDiv.innerHTML = `
+                    <div style="margin: 8px 0;">🟧 <span style="color: #ff8800;">Colored Panels</span> → Fly through tunnel</div>
+                    <div style="margin: 8px 0;">🌀 Panels turn <span style="color: #44ff44;">Green</span> when passed</div>
+                    <div style="margin: 8px 0;">🎢 Follow the crazy curved path!</div>
+                    <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
+                `;
+            } else if (level === 3) {
+                instructionsDiv.innerHTML = `
+                    <div style="margin: 8px 0;">🔵 <span style="color: #4488ff;">Large Spheres</span> → Ram nose-first at full speed</div>
+                    <div style="margin: 8px 0;">⚡ Get pulled inside → Kill all orbs (3 hits each)</div>
+                    <div style="margin: 8px 0;">💀 Orbs touch you = Respawn outside</div>
+                    <div style="margin: 8px 0;">🎯 Clear all 3 spheres to win!</div>
+                `;
+            }
+        }
         
         // Check and update level button states on page load
         window.addEventListener('DOMContentLoaded', () => {
