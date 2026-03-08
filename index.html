@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.4.8</title>
+    <title>Star Runner 3D - v1.4.9</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.4.8</div>
+    <div id="version">v1.4.9</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -2336,7 +2336,7 @@
             
             if (level === 1) {
                 instructionsDiv.innerHTML = `
-                    <div style="margin: 8px 0;">🔴 <span style="color: #ff4444;">Red Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
+                    <div style="margin: 8px 0;">🔴 <span style="color: ##FFFF00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
                     <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
                     <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
@@ -2350,10 +2350,10 @@
                 `;
             } else if (level === 3) {
                 instructionsDiv.innerHTML = `
-                    <div style="margin: 8px 0;">🔵 <span style="color: #4488ff;">Large Spheres</span> → Ram nose-first at full speed</div>
+                    <div style="margin: 8px 0;">🔵 <span style="color: #4488ff;">Large Spheres</span> → Ram dead-center at full speed</div>
                     <div style="margin: 8px 0;">⚡ Get pulled inside → Kill all orbs (3 hits each)</div>
                     <div style="margin: 8px 0;">💀 Orbs touch you = Respawn outside</div>
-                    <div style="margin: 8px 0;">🎯 Clear all 3 spheres to win!</div>
+                    <div style="margin: 8px 0;">🎯 faster 3 sphere completion time, more stars</div>
                 `;
             }
         }
