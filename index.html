@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.4.2</title>
+    <title>Star Runner 3D - v1.4.3</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.4.2</div>
+    <div id="version">v1.4.3</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -136,8 +136,8 @@
                 <h3>SELECT LEVEL</h3>
                 <div class="difficulty-buttons">
                     <button class="difficulty-btn level-btn active" data-level="1">Level 1</button>
-                    <button class="difficulty-btn level-btn" data-level="2" disabled style="opacity: 0.5;">Level 2 🔒</button>
-                    <button class="difficulty-btn level-btn" data-level="3" disabled style="opacity: 0.5;">Level 3 🔒</button>
+                    <button class="difficulty-btn level-btn" data-level="2">Level 2</button>
+                    <button class="difficulty-btn level-btn" data-level="3">Level 3</button>
                 </div>
             </div>
         </div>
@@ -916,7 +916,7 @@
             RAM_SPEED_THRESHOLD: 1.2, // Must be near full speed
             BOUNCE_DISTANCE: 300, // 5-6 ship lengths
             PULL_IN_DURATION: 2.0, // 2 seconds
-            ORB_SPEED: 0.8,
+            ORB_SPEED: 0.56, // Reduced by 30% from 0.8
             ORB_IMPULSE_INTERVAL: 3000 // 3 seconds between orb impulses
         };
 
@@ -2289,13 +2289,10 @@
         levelButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const level = parseInt(btn.dataset.level);
-                const isUnlocked = level === 1 || localStorage.getItem(`starRunner_level${level}_unlocked`) === 'true';
-                
-                if (isUnlocked) {
-                    currentLevel = level;
-                    levelButtons.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                }
+                // All levels unlocked - no check needed
+                currentLevel = level;
+                levelButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
             });
         });
         
@@ -2303,17 +2300,10 @@
         window.addEventListener('DOMContentLoaded', () => {
             levelButtons.forEach(btn => {
                 const level = parseInt(btn.dataset.level);
-                const isUnlocked = level === 1 || localStorage.getItem(`starRunner_level${level}_unlocked`) === 'true';
-                
-                if (isUnlocked) {
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                    btn.textContent = `Level ${level}`;
-                } else {
-                    btn.disabled = true;
-                    btn.style.opacity = '0.5';
-                    btn.textContent = `Level ${level} 🔒`;
-                }
+                // All levels unlocked for now
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.textContent = `Level ${level}`;
             });
         });
 
