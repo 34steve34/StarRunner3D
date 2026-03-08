@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.4.3</title>
+    <title>Star Runner 3D - v1.4.4</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.4.3</div>
+    <div id="version">v1.4.4</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -1100,8 +1100,11 @@
             pullingIn = false;
             insideSphere = true;
             
-            // Position ship at center of sphere
-            ship.position.copy(sphere.position);
+            // Store the bubble center for collision detection
+            const bubbleCenter = sphere.position.clone();
+            
+            // Position ship at center of bubble
+            ship.position.copy(bubbleCenter);
             velocityVec.set(0, 0, 0);
             
             // Create bubble walls
@@ -1113,10 +1116,11 @@
                 side: THREE.BackSide // See from inside
             });
             const bubble = new THREE.Mesh(bubbleGeo, bubbleMat);
-            bubble.position.copy(sphere.position);
+            bubble.position.copy(bubbleCenter);
             scene.add(bubble);
             
             sphere.bubble = bubble;
+            sphere.bubbleCenter = bubbleCenter; // Store for collision detection
             
             // Spawn orbs
             const levelData = LEVELS[currentLevel];
@@ -1199,9 +1203,9 @@
                     const radius = 150 + Math.random() * (SPHERE_CONFIG.BUBBLE_RADIUS - 200); // Keep away from walls and center
                     
                     orbPosition = new THREE.Vector3(
-                        sphere.position.x + radius * Math.sin(angle2) * Math.cos(angle1),
-                        sphere.position.y + radius * Math.sin(angle2) * Math.sin(angle1),
-                        sphere.position.z + radius * Math.cos(angle2)
+                        bubbleCenter.x + radius * Math.sin(angle2) * Math.cos(angle1),
+                        bubbleCenter.y + radius * Math.sin(angle2) * Math.sin(angle1),
+                        bubbleCenter.z + radius * Math.cos(angle2)
                     );
                     
                     // Check distance from ship (which is at sphere center)
@@ -1226,29 +1230,32 @@
                     health: 3,
                     maxHealth: 3,
                     sphereIndex: sphere.index,
-                    bubbleCenter: sphere.position.clone(),
+                    bubbleCenter: bubbleCenter.clone(), // Use the stored bubble center
                     lastImpulseTime: Date.now() + Math.random() * SPHERE_CONFIG.ORB_IMPULSE_INTERVAL
                 });
             }
         }
 
         function checkBubbleWallCollision() {
-            if (!insideSphere || !ship) return;
+            if (!insideSphere || !ship || currentSphereIndex < 0) return;
             
             const sphere = largeSpheres[currentSphereIndex];
-            const distFromCenter = ship.position.distanceTo(sphere.position);
+            if (!sphere || !sphere.active || !sphere.bubbleCenter) return;
             
-            // Ship collision with bubble wall
-            if (distFromCenter > SPHERE_CONFIG.BUBBLE_RADIUS - 30) {
-                // Push ship back inside
-                const normal = new THREE.Vector3().subVectors(ship.position, sphere.position).normalize();
-                ship.position.copy(sphere.position).add(normal.multiplyScalar(SPHERE_CONFIG.BUBBLE_RADIUS - 30));
+            const distFromCenter = ship.position.distanceTo(sphere.bubbleCenter);
+            const maxDistance = SPHERE_CONFIG.BUBBLE_RADIUS - 60; // Larger buffer
+            
+            // Ship collision with bubble wall - very aggressive containment
+            if (distFromCenter > maxDistance) {
+                // Push ship back inside aggressively
+                const normal = new THREE.Vector3().subVectors(ship.position, sphere.bubbleCenter).normalize();
+                ship.position.copy(sphere.bubbleCenter).add(normal.multiplyScalar(maxDistance - 10));
                 
-                // Stop velocity in the direction of the wall
+                // Kill all velocity to prevent escaping
                 velocityVec.set(0, 0, 0);
                 
-                // Brief shake
-                shakeDuration = 0.15;
+                // Brief shake for feedback
+                shakeDuration = 0.2;
             }
         }
 
@@ -1287,15 +1294,15 @@
                 // Move orb
                 orb.mesh.position.add(orb.velocity);
                 
-                // Bounce off bubble walls
+                // Bounce off bubble walls - more aggressive containment
                 const distFromCenter = orb.mesh.position.distanceTo(orb.bubbleCenter);
-                if (distFromCenter > SPHERE_CONFIG.BUBBLE_RADIUS - SPHERE_CONFIG.ORB_RADIUS) {
+                if (distFromCenter > SPHERE_CONFIG.BUBBLE_RADIUS - SPHERE_CONFIG.ORB_RADIUS - 20) {
                     // Reflect velocity
                     const normal = new THREE.Vector3().subVectors(orb.mesh.position, orb.bubbleCenter).normalize();
                     orb.velocity.reflect(normal);
                     
-                    // Push back inside
-                    orb.mesh.position.copy(orb.bubbleCenter).add(normal.multiplyScalar(SPHERE_CONFIG.BUBBLE_RADIUS - SPHERE_CONFIG.ORB_RADIUS - 1));
+                    // Push back inside more aggressively
+                    orb.mesh.position.copy(orb.bubbleCenter).add(normal.multiplyScalar(SPHERE_CONFIG.BUBBLE_RADIUS - SPHERE_CONFIG.ORB_RADIUS - 25));
                 }
                 
                 // Check collision with ship
