@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.2</title>
+    <title>Star Runner 3D - v1.5.3</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.2</div>
+    <div id="version">v1.5.3</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -151,6 +151,19 @@
         font-family: monospace; font-size: 11px;
         flex-direction: column; gap: 3px;
     "></div>
+    
+    <div id="autoZeroDebug" style="
+        position: absolute; top: 100px; left: 10px; z-index: 30;
+        display: none; pointer-events: none;
+        font-family: monospace; font-size: 10px;
+        background: rgba(0,0,0,0.7); padding: 5px;
+        border-left: 2px solid #00ff00;
+        color: #00ff00;
+    ">
+        <div id="zeroRefStatus">Ref: NONE</div>
+        <div id="zeroMatchStatus">Match: NO</div>
+        <div id="zeroActiveStatus">Zero: OFF</div>
+    </div>
 
     <canvas id="bloomCanvas"></canvas>
     
@@ -2741,6 +2754,9 @@
 		                const isStable = Math.abs(pitchRate) < ROTATION_RATE_THRESHOLD && 
 		                               Math.abs(yawRate) < ROTATION_RATE_THRESHOLD;
 		                
+		                // Update debug display
+		                updateAutoZeroDebug(dotProduct, isStable, gravityMatchDuration);
+		                
 		                // If gravity matches zero orientation AND phone is stable, accumulate match time
 		                if (dotProduct > GRAVITY_MATCH_THRESHOLD && isStable) {
 		                    gravityMatchDuration += dt;
@@ -2758,11 +2774,56 @@
 		                    // This ensures we only correct during sustained, stable returns to zero orientation
 		                    gravityMatchDuration = 0;
 		                }
+		            } else {
+		                // Update debug when no reference
+		                updateAutoZeroDebug(0, false, 0);
 		            }
 		        }
 		        lastMotionTime = now;
 		    }
 		});
+		
+		function updateAutoZeroDebug(dotProduct, isStable, matchDuration) {
+		    const debugDiv = document.getElementById('autoZeroDebug');
+		    if (!gameActive || !debugDiv) return;
+		    
+		    debugDiv.style.display = 'block';
+		    
+		    // a) Initial reading - show if we have a zero reference stored
+		    const refStatus = document.getElementById('zeroRefStatus');
+		    if (zeroGravitySignature) {
+		        refStatus.textContent = `Ref: [${zeroGravitySignature[0].toFixed(2)}, ${zeroGravitySignature[1].toFixed(2)}]`;
+		        refStatus.style.color = '#00ff00';
+		    } else {
+		        refStatus.textContent = 'Ref: NONE';
+		        refStatus.style.color = '#ff4444';
+		    }
+		    
+		    // b) Yes/No in that region - show if current gravity matches zero reference
+		    const matchStatus = document.getElementById('zeroMatchStatus');
+		    const inRegion = dotProduct > GRAVITY_MATCH_THRESHOLD && isStable;
+		    if (zeroGravitySignature) {
+		        matchStatus.textContent = `Match: ${inRegion ? 'YES' : 'NO'} (${dotProduct.toFixed(2)})`;
+		        matchStatus.style.color = inRegion ? '#00ff00' : '#ffaa00';
+		    } else {
+		        matchStatus.textContent = 'Match: N/A';
+		        matchStatus.style.color = '#666666';
+		    }
+		    
+		    // c) Auto zeroing taking place - show if actively correcting
+		    const activeStatus = document.getElementById('zeroActiveStatus');
+		    const isZeroing = matchDuration > GRAVITY_MATCH_REQUIRED_TIME;
+		    if (isZeroing) {
+		        activeStatus.textContent = `Zero: ACTIVE (${matchDuration.toFixed(1)}s)`;
+		        activeStatus.style.color = '#00ffff';
+		    } else if (matchDuration > 0) {
+		        activeStatus.textContent = `Zero: WAIT (${matchDuration.toFixed(1)}s)`;
+		        activeStatus.style.color = '#ffaa00';
+		    } else {
+		        activeStatus.textContent = 'Zero: OFF';
+		        activeStatus.style.color = '#666666';
+		    }
+		}
 // Register service worker for offline functionality
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
