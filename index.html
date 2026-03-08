@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.4.5</title>
+    <title>Star Runner 3D - v1.4.6</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.4.5</div>
+    <div id="version">v1.4.6</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -1105,6 +1105,9 @@
             // Store the bubble center from the actual mesh position (not the stored position)
             const bubbleCenter = sphere.mesh.position.clone();
             
+            // Hide the large sphere mesh (we're inside now)
+            sphere.mesh.visible = false;
+            
             // Position ship at center of bubble
             ship.position.copy(bubbleCenter);
             velocityVec.set(0, 0, 0);
@@ -1242,13 +1245,26 @@
             if (!insideSphere || !ship || currentSphereIndex < 0) return;
             
             const sphere = largeSpheres[currentSphereIndex];
-            if (!sphere || !sphere.active || !sphere.bubbleCenter) return;
+            if (!sphere || !sphere.active || !sphere.bubbleCenter) {
+                console.log("Bubble collision check failed - missing data:", {
+                    sphere: !!sphere,
+                    active: sphere?.active,
+                    bubbleCenter: !!sphere?.bubbleCenter
+                });
+                return;
+            }
             
             const distFromCenter = ship.position.distanceTo(sphere.bubbleCenter);
             const maxDistance = SPHERE_CONFIG.BUBBLE_RADIUS - 120; // Much tighter - keep away from walls
             
+            // Debug log when near wall
+            if (distFromCenter > maxDistance - 50) {
+                console.log("Near wall:", distFromCenter, "max:", maxDistance);
+            }
+            
             // Ship collision with bubble wall - very aggressive containment
             if (distFromCenter > maxDistance) {
+                console.log("COLLISION! Pushing back from", distFromCenter, "to", maxDistance - 20);
                 // Push ship back inside aggressively
                 const normal = new THREE.Vector3().subVectors(ship.position, sphere.bubbleCenter).normalize();
                 ship.position.copy(sphere.bubbleCenter).add(normal.multiplyScalar(maxDistance - 20));
@@ -1330,7 +1346,8 @@
             setTimeout(() => {
                 // Respawn outside the sphere
                 const sphere = largeSpheres[currentSphereIndex];
-                ship.position.set(sphere.position.x, sphere.position.y, sphere.position.z + SPHERE_CONFIG.LARGE_SPHERE_RADIUS + 200);
+                const spherePos = sphere.mesh.position;
+                ship.position.set(spherePos.x, spherePos.y, spherePos.z + SPHERE_CONFIG.LARGE_SPHERE_RADIUS + 200);
                 ship.visible = true;
                 isRespawning = false;
                 
@@ -1377,14 +1394,16 @@
                         // Check if level complete
                         checkLevelComplete();
                     } else {
-                        // Fade out
+                        // Fade out (make visible first)
+                        sphere.mesh.visible = true;
                         sphere.mesh.children[0].material.opacity = (1 - progress) * 0.6;
                         sphere.mesh.children[1].intensity = (1 - progress) * 2000;
                     }
                 }, 16);
             } else {
-                // Restore orbs for this sphere (reset)
-                // They'll be recreated when player rams again
+                // Failed - show the large sphere again
+                sphere.mesh.visible = true;
+                // Orbs will be recreated when player rams again
             }
         }
 
