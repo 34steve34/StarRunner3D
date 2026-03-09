@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.6</title>
+    <title>Star Runner 3D - v1.5.7</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.6</div>
+    <div id="version">v1.5.7</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -248,19 +248,16 @@
 		let relativeTilt = { p: 0, y: 0 };
 		let lastMotionTime = 0;
 		let currentRotationRate = { alpha: 0, beta: 0, gamma: 0 };
-		let lastOrientationEventTime = 0;
 		
-		// === GRAVITY-BASED AUTO-CORRECTION ===
-		// When user presses ZERO, we store the phone's tilt orientation (beta/gamma angles).
-		// If the phone returns to this same tilt AND remains stable for 2+ seconds,
-		// we gently correct pitch/roll drift. This helps combat gyro drift without
-		// interfering with intentional player movements.
-		let zeroOrientationAngles = null; // Stores [beta, gamma] angles at ZERO press
-		let orientationMatchDuration = 0; // How long current orientation has matched zero
-		const ORIENTATION_MATCH_THRESHOLD = 8; // Degrees - how close angles must be to match
-		const ORIENTATION_MATCH_REQUIRED_TIME = 2.0; // Seconds of sustained match before correcting
-		const ROTATION_RATE_THRESHOLD = 8; // Degrees/sec - below this is "stable"
-		const AUTO_ZERO_CORRECTION_SPEED = 0.03; // 3% correction per frame (smooth and gradual)
+		// === DRIFT DETECTION AUTO-CORRECTION ===
+		// Detect gyro drift by comparing gyro integration vs gravity orientation
+		// If gyro says we're rotating but gravity orientation is stable, that's drift
+		let lastGravityOrientation = { beta: 0, gamma: 0 };
+		let gravityStableDuration = 0;
+		let driftDetected = false;
+		const GRAVITY_STABLE_THRESHOLD = 2; // Degrees - how much gravity can change and still be "stable"
+		const GRAVITY_STABLE_TIME = 2.0; // Seconds of gravity stability before correcting drift
+		const DRIFT_CORRECTION_SPEED = 0.05; // 5% correction per frame when drift detected
         
         // === RECTANGULAR TUNNEL ===
         let tunnelPanels = [];
@@ -456,13 +453,11 @@
             
             updateBloom();
             
-            // === CONTINUOUS AUTO-ZERO CORRECTION ===
-            // Apply correction every frame if conditions are met
-            // This runs independently of deviceorientation events
-            if (orientationMatchDuration > ORIENTATION_MATCH_REQUIRED_TIME) {
-                // Smooth gradual correction - 3% per frame
-                relativeTilt.p *= (1 - AUTO_ZERO_CORRECTION_SPEED);
-                relativeTilt.y *= (1 - AUTO_ZERO_CORRECTION_SPEED);
+            // === DRIFT CORRECTION ===
+            // Apply correction when drift is detected (gyro drifting while gravity stable)
+            if (driftDetected) {
+                relativeTilt.p *= (1 - DRIFT_CORRECTION_SPEED);
+                relativeTilt.y *= (1 - DRIFT_CORRECTION_SPEED);
             }
             
             if (ship && isInitialized && !isRespawning) {
@@ -2294,46 +2289,38 @@
     }
     // No yaw anti-drift: accumulates for unlimited rotation
     
-    // === ORIENTATION-BASED AUTO-CORRECTION ===
-    // Check if phone has returned to zero orientation for auto-drift correction
-    if (zeroOrientationAngles && e.beta !== null && e.gamma !== null) {
+    // === DRIFT DETECTION AUTO-CORRECTION ===
+    // Detect drift by checking if gravity orientation is stable
+    // If gravity is stable but gyro integrated tilt is changing, that's drift
+    if (e.beta !== null && e.gamma !== null) {
         const currentBeta = e.beta;
         const currentGamma = e.gamma;
         
-        // Calculate actual time delta between orientation events
-        const currentTime = performance.now() / 1000; // Convert to seconds
-        const deltaTime = lastOrientationEventTime > 0 ? currentTime - lastOrientationEventTime : 0.016;
-        lastOrientationEventTime = currentTime;
+        // Calculate how much gravity orientation has changed
+        const betaChange = Math.abs(currentBeta - lastGravityOrientation.beta);
+        const gammaChange = Math.abs(currentGamma - lastGravityOrientation.gamma);
+        const gravityIsStable = betaChange < GRAVITY_STABLE_THRESHOLD && 
+                               gammaChange < GRAVITY_STABLE_THRESHOLD;
         
-        // Calculate angular difference from zero orientation
-        const betaDiff = Math.abs(currentBeta - zeroOrientationAngles[0]);
-        const gammaDiff = Math.abs(currentGamma - zeroOrientationAngles[1]);
+        // Get frame time for accumulation
+        const dt = clock.getDelta();
         
-        // Check if orientation matches zero reference (within threshold)
-        const orientationMatches = betaDiff < ORIENTATION_MATCH_THRESHOLD && 
-                                  gammaDiff < ORIENTATION_MATCH_THRESHOLD;
-        
-        // Check if phone is stable (low rotation rates from gyro)
-        // Use the gyro data we're already tracking from devicemotion
-        const pitchRate = Math.abs(currentRotationRate.beta || 0);
-        const rollRate = Math.abs(currentRotationRate.gamma || 0);
-        const isStable = pitchRate < ROTATION_RATE_THRESHOLD && 
-                        rollRate < ROTATION_RATE_THRESHOLD;
+        if (gravityIsStable) {
+            gravityStableDuration += dt;
+            // If gravity has been stable long enough, we're detecting drift
+            driftDetected = gravityStableDuration > GRAVITY_STABLE_TIME;
+        } else {
+            // Gravity changed - phone is actually moving, reset
+            gravityStableDuration = 0;
+            driftDetected = false;
+            lastGravityOrientation.beta = currentBeta;
+            lastGravityOrientation.gamma = currentGamma;
+        }
         
         // Update debug display
-        updateAutoZeroDebug(betaDiff, gammaDiff, orientationMatches && isStable, orientationMatchDuration);
-        
-        // If orientation matches AND phone is stable, accumulate match time using actual delta
-        if (orientationMatches && isStable) {
-            orientationMatchDuration += deltaTime;
-            // Correction now happens in animate() loop every frame
-        } else {
-            // Reset match duration if orientation doesn't match or phone is moving
-            orientationMatchDuration = 0;
-        }
-    } else {
-        // Update debug when no reference
-        updateAutoZeroDebug(0, 0, false, 0);
+        const pitchRate = currentRotationRate.beta || 0;
+        const rollRate = currentRotationRate.gamma || 0;
+        updateAutoZeroDebug(betaChange, gammaChange, gravityIsStable, gravityStableDuration, driftDetected);
     }
 }
 
@@ -2482,17 +2469,9 @@
             gameActive = true; 
 			isInitialized = true;
             
-            // Capture initial orientation as zero reference when game starts
-            if (window.DeviceOrientationEvent) {
-                const captureInitialOrientation = (e) => {
-                    if (e.beta !== null && e.gamma !== null) {
-                        zeroOrientationAngles = [e.beta, e.gamma];
-                        console.log('Initial zero orientation captured:', zeroOrientationAngles);
-                    }
-                    window.removeEventListener('deviceorientation', captureInitialOrientation);
-                };
-                window.addEventListener('deviceorientation', captureInitialOrientation);
-            }
+            // Initialize drift detection
+            gravityStableDuration = 0;
+            driftDetected = false;
             
             init();
             
@@ -2688,24 +2667,9 @@
 			// Reset relative tilt to zero
 			relativeTilt = { p: 0, y: 0 };
 			
-			// Store current orientation angles for auto-correction
-			// We capture the phone's current beta (pitch) and gamma (roll) angles
-			// This allows us to detect when the phone returns to this orientation later
-			// and gently correct any accumulated gyro drift
-			if (window.DeviceOrientationEvent) {
-				// Request a one-time orientation event to capture current angles
-				const captureOrientation = (e) => {
-					if (e.beta !== null && e.gamma !== null) {
-						zeroOrientationAngles = [e.beta, e.gamma];
-						console.log('Zero orientation angles stored:', zeroOrientationAngles);
-					}
-					window.removeEventListener('deviceorientation', captureOrientation);
-				};
-				window.addEventListener('deviceorientation', captureOrientation);
-			}
-			
-			// Reset match duration
-			orientationMatchDuration = 0;
+			// Reset drift detection
+			gravityStableDuration = 0;
+			driftDetected = false;
 		}, {passive: false});
 
         // === KEYBOARD CONTROLS FOR LAPTOP TESTING ===
@@ -2800,43 +2764,32 @@
 		    }
 		});
 		
-		function updateAutoZeroDebug(betaDiff, gammaDiff, isMatching, matchDuration) {
+		function updateAutoZeroDebug(betaChange, gammaChange, gravityStable, stableDuration, driftActive) {
 		    const debugDiv = document.getElementById('autoZeroDebug');
 		    if (!gameActive || !debugDiv) return;
 		    
 		    debugDiv.style.display = 'block';
 		    
-		    // a) Initial reading - show stored zero orientation angles
+		    // a) Gravity change - show how much phone orientation changed
 		    const refStatus = document.getElementById('zeroRefStatus');
-		    if (zeroOrientationAngles) {
-		        refStatus.textContent = `Ref: [${zeroOrientationAngles[0].toFixed(1)}°, ${zeroOrientationAngles[1].toFixed(1)}°]`;
-		        refStatus.style.color = '#00ff00';
-		    } else {
-		        refStatus.textContent = 'Ref: NONE';
-		        refStatus.style.color = '#ff4444';
-		    }
+		    refStatus.textContent = `Grav: Δ${betaChange.toFixed(1)}° Δ${gammaChange.toFixed(1)}°`;
+		    refStatus.style.color = gravityStable ? '#00ff00' : '#ffaa00';
 		    
-		    // b) Yes/No in that region - show if current orientation matches zero reference
+		    // b) Gravity stability - show if phone orientation is stable
 		    const matchStatus = document.getElementById('zeroMatchStatus');
-		    if (zeroOrientationAngles) {
-		        matchStatus.textContent = `Match: ${isMatching ? 'YES' : 'NO'} (Δ${betaDiff.toFixed(1)}°,${gammaDiff.toFixed(1)}°)`;
-		        matchStatus.style.color = isMatching ? '#00ff00' : '#ffaa00';
-		    } else {
-		        matchStatus.textContent = 'Match: N/A';
-		        matchStatus.style.color = '#666666';
-		    }
+		    matchStatus.textContent = `Stable: ${gravityStable ? 'YES' : 'NO'}`;
+		    matchStatus.style.color = gravityStable ? '#00ff00' : '#ffaa00';
 		    
-		    // c) Auto zeroing taking place - show if actively correcting
+		    // c) Drift correction status
 		    const activeStatus = document.getElementById('zeroActiveStatus');
-		    const isZeroing = matchDuration > ORIENTATION_MATCH_REQUIRED_TIME;
-		    if (isZeroing) {
-		        activeStatus.textContent = `Zero: ACTIVE (${matchDuration.toFixed(1)}s)`;
+		    if (driftActive) {
+		        activeStatus.textContent = `Drift: FIXING (${stableDuration.toFixed(1)}s)`;
 		        activeStatus.style.color = '#00ffff';
-		    } else if (matchDuration > 0) {
-		        activeStatus.textContent = `Zero: WAIT (${matchDuration.toFixed(1)}s)`;
+		    } else if (stableDuration > 0) {
+		        activeStatus.textContent = `Drift: WAIT (${stableDuration.toFixed(1)}s)`;
 		        activeStatus.style.color = '#ffaa00';
 		    } else {
-		        activeStatus.textContent = 'Zero: OFF';
+		        activeStatus.textContent = 'Drift: NONE';
 		        activeStatus.style.color = '#666666';
 		    }
 		}
