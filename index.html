@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.4</title>
+    <title>Star Runner 3D - v1.5.5</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.4</div>
+    <div id="version">v1.5.5</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -453,6 +453,15 @@
             const dt = clock.getDelta();
             
             updateBloom();
+            
+            // === CONTINUOUS AUTO-ZERO CORRECTION ===
+            // Apply correction every frame if conditions are met
+            // This runs independently of deviceorientation events
+            if (orientationMatchDuration > ORIENTATION_MATCH_REQUIRED_TIME) {
+                // Aggressive correction - 20% per frame
+                relativeTilt.p *= 0.80;
+                relativeTilt.y *= 0.80;
+            }
             
             if (ship && isInitialized && !isRespawning) {
                 applyKeyboardControls(); // Apply keyboard input continuously
@@ -2309,13 +2318,7 @@
         // If orientation matches AND phone is stable, accumulate match time
         if (orientationMatches && isStable) {
             orientationMatchDuration += 0.016; // Assume ~60fps
-            
-            // After sustained match (2+ seconds), apply gentle drift correction
-            if (orientationMatchDuration > ORIENTATION_MATCH_REQUIRED_TIME) {
-                // Gentle exponential decay toward zero (5% correction per frame)
-                relativeTilt.p *= 0.95;
-                relativeTilt.y *= 0.95;
-            }
+            // Correction now happens in animate() loop every frame
         } else {
             // Reset match duration if orientation doesn't match or phone is moving
             orientationMatchDuration = 0;
