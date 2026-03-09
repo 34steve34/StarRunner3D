@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.5</title>
+    <title>Star Runner 3D - v1.5.6</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.5</div>
+    <div id="version">v1.5.6</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -248,6 +248,7 @@
 		let relativeTilt = { p: 0, y: 0 };
 		let lastMotionTime = 0;
 		let currentRotationRate = { alpha: 0, beta: 0, gamma: 0 };
+		let lastOrientationEventTime = 0;
 		
 		// === GRAVITY-BASED AUTO-CORRECTION ===
 		// When user presses ZERO, we store the phone's tilt orientation (beta/gamma angles).
@@ -256,9 +257,10 @@
 		// interfering with intentional player movements.
 		let zeroOrientationAngles = null; // Stores [beta, gamma] angles at ZERO press
 		let orientationMatchDuration = 0; // How long current orientation has matched zero
-		const ORIENTATION_MATCH_THRESHOLD = 5; // Degrees - how close angles must be to match
+		const ORIENTATION_MATCH_THRESHOLD = 8; // Degrees - how close angles must be to match
 		const ORIENTATION_MATCH_REQUIRED_TIME = 2.0; // Seconds of sustained match before correcting
-		const ROTATION_RATE_THRESHOLD = 5; // Degrees/sec - below this is "stable"
+		const ROTATION_RATE_THRESHOLD = 8; // Degrees/sec - below this is "stable"
+		const AUTO_ZERO_CORRECTION_SPEED = 0.03; // 3% correction per frame (smooth and gradual)
         
         // === RECTANGULAR TUNNEL ===
         let tunnelPanels = [];
@@ -458,9 +460,9 @@
             // Apply correction every frame if conditions are met
             // This runs independently of deviceorientation events
             if (orientationMatchDuration > ORIENTATION_MATCH_REQUIRED_TIME) {
-                // Aggressive correction - 20% per frame
-                relativeTilt.p *= 0.80;
-                relativeTilt.y *= 0.80;
+                // Smooth gradual correction - 3% per frame
+                relativeTilt.p *= (1 - AUTO_ZERO_CORRECTION_SPEED);
+                relativeTilt.y *= (1 - AUTO_ZERO_CORRECTION_SPEED);
             }
             
             if (ship && isInitialized && !isRespawning) {
@@ -2298,6 +2300,11 @@
         const currentBeta = e.beta;
         const currentGamma = e.gamma;
         
+        // Calculate actual time delta between orientation events
+        const currentTime = performance.now() / 1000; // Convert to seconds
+        const deltaTime = lastOrientationEventTime > 0 ? currentTime - lastOrientationEventTime : 0.016;
+        lastOrientationEventTime = currentTime;
+        
         // Calculate angular difference from zero orientation
         const betaDiff = Math.abs(currentBeta - zeroOrientationAngles[0]);
         const gammaDiff = Math.abs(currentGamma - zeroOrientationAngles[1]);
@@ -2307,17 +2314,18 @@
                                   gammaDiff < ORIENTATION_MATCH_THRESHOLD;
         
         // Check if phone is stable (low rotation rates from gyro)
-        const pitchRate = Math.abs((currentRotationRate.beta || 0) * (180 / Math.PI));
-        const rollRate = Math.abs((currentRotationRate.gamma || 0) * (180 / Math.PI));
+        // Use the gyro data we're already tracking from devicemotion
+        const pitchRate = Math.abs(currentRotationRate.beta || 0);
+        const rollRate = Math.abs(currentRotationRate.gamma || 0);
         const isStable = pitchRate < ROTATION_RATE_THRESHOLD && 
                         rollRate < ROTATION_RATE_THRESHOLD;
         
         // Update debug display
         updateAutoZeroDebug(betaDiff, gammaDiff, orientationMatches && isStable, orientationMatchDuration);
         
-        // If orientation matches AND phone is stable, accumulate match time
+        // If orientation matches AND phone is stable, accumulate match time using actual delta
         if (orientationMatches && isStable) {
-            orientationMatchDuration += 0.016; // Assume ~60fps
+            orientationMatchDuration += deltaTime;
             // Correction now happens in animate() loop every frame
         } else {
             // Reset match duration if orientation doesn't match or phone is moving
@@ -2759,7 +2767,14 @@
 
 		window.addEventListener('devicemotion', e => {
 		    if (e.rotationRate && gameActive) {
-		        currentRotationRate = e.rotationRate;
+		        // Store rotation rates in degrees/sec for stability checking
+		        // rotationRate gives us rad/sec, convert to deg/sec
+		        currentRotationRate = {
+		            alpha: Math.abs((e.rotationRate.alpha || 0) * (180 / Math.PI)),
+		            beta: Math.abs((e.rotationRate.beta || 0) * (180 / Math.PI)),
+		            gamma: Math.abs((e.rotationRate.gamma || 0) * (180 / Math.PI))
+		        };
+		        
 		        const now = performance.now();
 		        if (lastMotionTime > 0) {
 		            const dt = (now - lastMotionTime) / 1000;
