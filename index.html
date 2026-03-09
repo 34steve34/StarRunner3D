@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.7</title>
+    <title>Star Runner 3D - v1.5.8</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.7</div>
+    <div id="version">v1.5.8</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -2296,6 +2296,13 @@
         const currentBeta = e.beta;
         const currentGamma = e.gamma;
         
+        // Initialize lastGravityOrientation on first reading
+        if (lastGravityOrientation.beta === 0 && lastGravityOrientation.gamma === 0) {
+            lastGravityOrientation.beta = currentBeta;
+            lastGravityOrientation.gamma = currentGamma;
+            return; // Skip first frame
+        }
+        
         // Calculate how much gravity orientation has changed
         const betaChange = Math.abs(currentBeta - lastGravityOrientation.beta);
         const gammaChange = Math.abs(currentGamma - lastGravityOrientation.gamma);
@@ -2469,9 +2476,10 @@
             gameActive = true; 
 			isInitialized = true;
             
-            // Initialize drift detection
+            // Initialize drift detection with first gravity reading
             gravityStableDuration = 0;
             driftDetected = false;
+            lastGravityOrientation = { beta: 0, gamma: 0 }; // Will be set on first orientation event
             
             init();
             
@@ -2667,9 +2675,10 @@
 			// Reset relative tilt to zero
 			relativeTilt = { p: 0, y: 0 };
 			
-			// Reset drift detection
+			// Reset drift detection and capture current orientation
 			gravityStableDuration = 0;
 			driftDetected = false;
+			lastGravityOrientation = { beta: 0, gamma: 0 }; // Will reinitialize on next frame
 		}, {passive: false});
 
         // === KEYBOARD CONTROLS FOR LAPTOP TESTING ===
