@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v1.5.9</title>
+    <title>Star Runner 3D - v1.6.0</title>
 	<link rel="manifest" href="manifest.json">
     
     <style>
@@ -105,7 +105,7 @@
     </style>
 </head>
 <body>
-    <div id="version">v1.5.9</div>
+    <div id="version">v1.6.0</div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -2483,6 +2483,9 @@
             lastGravityOrientation = { beta: 0, gamma: 0 }; // Will be set on first orientation event
             lastOrientationEventTime = 0;
             
+            // Show debug display
+            updateAutoZeroDebug(0, 0, false, 0, false);
+            
             init();
             
             new GLTFLoader().load('./assets/ship.glb', 
@@ -2778,31 +2781,42 @@
 		
 		function updateAutoZeroDebug(betaChange, gammaChange, gravityStable, stableDuration, driftActive) {
 		    const debugDiv = document.getElementById('autoZeroDebug');
-		    if (!gameActive || !debugDiv) return;
+		    if (!debugDiv) return;
+		    
+		    if (!gameActive) {
+		        debugDiv.style.display = 'none';
+		        return;
+		    }
 		    
 		    debugDiv.style.display = 'block';
 		    
 		    // a) Gravity change - show how much phone orientation changed
 		    const refStatus = document.getElementById('zeroRefStatus');
-		    refStatus.textContent = `Grav: Δ${betaChange.toFixed(1)}° Δ${gammaChange.toFixed(1)}°`;
-		    refStatus.style.color = gravityStable ? '#00ff00' : '#ffaa00';
+		    if (refStatus) {
+		        refStatus.textContent = `Grav: Δ${betaChange.toFixed(1)}° Δ${gammaChange.toFixed(1)}°`;
+		        refStatus.style.color = gravityStable ? '#00ff00' : '#ffaa00';
+		    }
 		    
 		    // b) Gravity stability - show if phone orientation is stable
 		    const matchStatus = document.getElementById('zeroMatchStatus');
-		    matchStatus.textContent = `Stable: ${gravityStable ? 'YES' : 'NO'}`;
-		    matchStatus.style.color = gravityStable ? '#00ff00' : '#ffaa00';
+		    if (matchStatus) {
+		        matchStatus.textContent = `Stable: ${gravityStable ? 'YES' : 'NO'}`;
+		        matchStatus.style.color = gravityStable ? '#00ff00' : '#ffaa00';
+		    }
 		    
 		    // c) Drift correction status
 		    const activeStatus = document.getElementById('zeroActiveStatus');
-		    if (driftActive) {
-		        activeStatus.textContent = `Drift: FIXING (${stableDuration.toFixed(1)}s)`;
-		        activeStatus.style.color = '#00ffff';
-		    } else if (stableDuration > 0) {
-		        activeStatus.textContent = `Drift: WAIT (${stableDuration.toFixed(1)}s)`;
-		        activeStatus.style.color = '#ffaa00';
-		    } else {
-		        activeStatus.textContent = 'Drift: NONE';
-		        activeStatus.style.color = '#666666';
+		    if (activeStatus) {
+		        if (driftActive) {
+		            activeStatus.textContent = `Drift: FIXING (${stableDuration.toFixed(1)}s)`;
+		            activeStatus.style.color = '#00ffff';
+		        } else if (stableDuration > 0) {
+		            activeStatus.textContent = `Drift: WAIT (${stableDuration.toFixed(1)}s)`;
+		            activeStatus.style.color = '#ffaa00';
+		        } else {
+		            activeStatus.textContent = 'Drift: NONE';
+		            activeStatus.style.color = '#666666';
+		        }
 		    }
 		}
 // Register service worker for offline functionality
