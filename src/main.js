@@ -1,4 +1,4 @@
-﻿// Star Runner 3D v2.0.3 - Main Game Logic
+﻿// Star Runner 3D v2.0.4 - Main Game Logic
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG, LEVELS } from './game/config.js';
@@ -2203,31 +2203,53 @@ import { CONFIG, LEVELS } from './game/config.js';
         });
         
         function updateLevelInstructions(level) {
-    const instructionsDiv = document.getElementById('levelInstructions');
-    
-    if (level === 1) {
-        instructionsDiv.innerHTML = `
-            <div style="margin: 8px 0;">🌟 <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
-            <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
-            <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
-            <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
-        `;
-    } else if (level === 2) {
-        instructionsDiv.innerHTML = `
-            <div style="margin: 8px 0;">🟧 <span style="color: #ff8800;">Colored Panels</span> → Fly through tunnel</div>
-            <div style="margin: 8px 0;">🌀 Panels turn <span style="color: #44ff44;">Green</span> when passed</div>
-            <div style="margin: 8px 0;">🎢 Follow the crazy curved path!</div>
-            <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
-        `;
-    } else if (level === 3) {
-        instructionsDiv.innerHTML = `
-            <div style="margin: 8px 0;">🔵 <span style="color: #4488ff;">Large Spheres</span> → Ram dead-center at full speed</div>
-            <div style="margin: 8px 0;">⚡ Get pulled inside → Kill all orbs (3 hits each)</div>
-            <div style="margin: 8px 0;">💀 Orbs touch you = Respawn outside</div>
-            <div style="margin: 8px 0;">🎯 faster 3 sphere completion time, more stars</div>
-        `;
-    }
-}
+            const instructionsDiv = document.getElementById('levelInstructions');
+            const secondaryDiv = document.getElementById('secondaryInstructions');
+            
+            if (level === 1) {
+                instructionsDiv.innerHTML = `
+                    <div style="margin: 8px 0;">🌟 <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
+                    <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
+                    <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
+                    <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
+                `;
+                if (secondaryDiv) {
+                    secondaryDiv.innerHTML = `
+                        • Slide thrust up for speed<br>
+                        • All gates & targets must be green<br>
+                        • Shoot targets to complete level
+                    `;
+                }
+            } else if (level === 2) {
+                instructionsDiv.innerHTML = `
+                    <div style="margin: 8px 0;">🟧 <span style="color: #ff8800;">Colored Panels</span> → Fly through tunnel</div>
+                    <div style="margin: 8px 0;">🌀 Panels turn <span style="color: #44ff44;">Green</span> when passed</div>
+                    <div style="margin: 8px 0;">🎢 Follow the crazy curved path!</div>
+                    <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
+                `;
+                if (secondaryDiv) {
+                    secondaryDiv.innerHTML = `
+                        • Slide thrust up for speed<br>
+                        • Follow the curved tunnel path<br>
+                        • Pass through all colored panels
+                    `;
+                }
+            } else if (level === 3) {
+                instructionsDiv.innerHTML = `
+                    <div style="margin: 8px 0;">🔵 <span style="color: #4488ff;">Large Spheres</span> → Ram dead-center at full speed</div>
+                    <div style="margin: 8px 0;">⚡ Get pulled inside → Kill all orbs (3 hits each)</div>
+                    <div style="margin: 8px 0;">💀 Orbs touch you = Respawn outside</div>
+                    <div style="margin: 8px 0;">🎯 faster 3 sphere completion time, more stars</div>
+                `;
+                if (secondaryDiv) {
+                    secondaryDiv.innerHTML = `
+                        • Ram spheres at full thrust<br>
+                        • Destroy all orbs inside each sphere<br>
+                        • Complete all 3 spheres to win
+                    `;
+                }
+            }
+        }
 
         
         // Check and update level button states on page load
