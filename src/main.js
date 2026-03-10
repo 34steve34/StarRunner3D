@@ -1,4 +1,4 @@
-﻿// Star Runner 3D v2.0.0 - Main Game Logic
+// Star Runner 3D v2.0.1 - Main Game Logic
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG, LEVELS } from './game/config.js';
@@ -2160,8 +2160,8 @@ import { CONFIG, LEVELS } from './game/config.js';
             else if (elapsedTime <= levelData.star2) stars = 2;
             else if (elapsedTime <= levelData.star1) stars = 1;
             
-            const starsDisplay = stars === 3 ? 'â­â­â­' : stars === 2 ? 'â­â­' : stars === 1 ? 'â­' : 'âŒ';
-            document.getElementById('starsEarned').textContent = starsDisplay;
+            const starsDisplay = stars === 3 ? '⭐⭐⭐' : stars === 2 ? '⭐⭐' : stars === 1 ? '⭐' : '❌';
+		    document.getElementById('starsEarned').textContent = starsDisplay;
             
             const mins = Math.floor(elapsedTime / 60);
             const secs = elapsedTime % 60;
@@ -2609,5 +2609,4 @@ if ('serviceWorker' in navigator) {
 }
 
 	
-
 
