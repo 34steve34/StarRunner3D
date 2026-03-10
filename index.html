@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Star Runner 3D - v2.0.4</title>
+    <title>Star Runner 3D</title>
 	<link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="styles/game.css">
 </head>
 <body>
-    <div id="version">v2.0.4</div>
+    <div id="version">v<span id="displayVersion"></span></div>
     <button id="zeroBtn">ZERO</button>
     <div id="thrustSliderTrack"></div>
     <button id="thrustBtn">THRUST</button>
@@ -87,6 +87,11 @@
         }
     </script>
 
+    <script type="module">
+        import { VERSION } from './version.js';
+        document.getElementById('displayVersion').textContent = VERSION;
+        document.title = `Star Runner 3D - v${VERSION}`;
+    </script>
     <script type="module" src="src/main.js"></script>
 </body>
 </html>
