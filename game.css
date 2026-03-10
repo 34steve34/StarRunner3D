@@ -1,0 +1,126 @@
+/* Star Runner 3D v2.0.0 - Styles */
+
+body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: #0f0; touch-action: none; }
+
+#ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 90%; max-width: 600px; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+
+#zeroBtn { position: absolute; top: 40px; left: 30px; padding: 10px; background: #222; color: #0f0; border: 1px solid #0f0; z-index: 30; font-size: 10px; cursor: pointer; border-radius: 5px; }
+
+#version { position: absolute; top: 10px; right: 10px; color: rgba(255, 120, 0, 0.7); font-size: 10px; z-index: 30; }
+
+#thrustSliderTrack { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 208px; background: rgba(255, 120, 0, 0.15); border: 2px solid rgba(255, 120, 0, 0.4); border-radius: 52px; z-index: 19; display: none; pointer-events: none; }
+
+#thrustBtn { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 104px; background: rgba(255, 120, 0, 0.3); color: white; border: 2px solid #ff7800; border-radius: 50%; cursor: pointer; font-size: 14px; z-index: 20; display: none; -webkit-user-select: none; user-select: none; touch-action: none; }
+
+#thrustBtn.active { background: rgba(255, 120, 0, 0.7); }
+
+#hud { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); text-align: center; color: #0ff; font-size: 16px; display: none; width: 100%; pointer-events: none; }
+
+#timer { color: #00ff00; font-weight: bold; font-size: 24px; }
+
+#levelInfo { color: #ffaa00; font-size: 18px; margin-top: 5px; }
+
+#objectiveInfo { color: #fff; font-size: 14px; margin-top: 5px; }
+
+#splashInfo {
+    background: rgba(0, 0, 0, 0.85); border: 2px solid #00E676; padding: 15px;
+    border-radius: 8px; width: 280px; box-shadow: 0 0 15px rgba(0, 230, 118, 0.2);
+}
+
+#splashInfo h2 { margin: 0 0 10px 0; color: #fff; font-size: 18px; letter-spacing: 1px; }
+
+.legend-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; font-size: 14px; }
+
+.color-box { width: 16px; height: 16px; border-radius: 50%; display: inline-block; margin-right: 10px; }
+
+.legend-text { color: #ddd; flex-grow: 1; text-align: left; }
+
+.legend-pts { color: #fff; font-weight: bold; }
+
+#startRow {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 18px;
+    flex-wrap: wrap;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+#difficultyContainer {
+    background: rgba(0, 0, 0, 0.85);
+    border: 2px solid #00E676;
+    padding: 12px;
+    border-radius: 8px;
+    width: 220px;
+    box-shadow: 0 0 15px rgba(0, 230, 118, 0.2);
+}
+
+#difficultyContainer h3 {
+    margin: 0 0 8px 0;
+    color: #fff;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+.difficulty-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.difficulty-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+    background: #111;
+    color: #00E676;
+    border: 1px solid #00E676;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.difficulty-btn.active {
+    background: #00E676;
+    color: #000;
+    box-shadow: 0 0 10px rgba(0, 230, 118, 0.6);
+}
+
+.indicator { 
+    position: absolute; 
+    border-radius: 50%; 
+    pointer-events: none; 
+    z-index: 5; 
+    transform: translate(-50%, -50%); 
+}
+
+button#startBtn { padding: 15px 30px; font-size: 18px; background: #00E676; color: #000; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 280px; box-shadow: 0 0 15px rgba(0, 230, 118, 0.4); }
+
+#results {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; display: none; background: rgba(0,0,0,0.95); padding: 20px 30px; 
+    border: 2px solid #00E676; z-index: 110; box-shadow: 0 0 30px rgba(0,230,118,0.3);
+    width: 85%; max-width: 600px;
+    border-radius: 10px;
+}
+
+#results h1 { color: #fff; font-size: 24px; margin: 0 0 15px 0; letter-spacing: 2px; }
+
+.stars-display { font-size: 48px; margin: 20px 0; }
+
+.time-display { font-size: 36px; color: #00ff00; margin: 15px 0; }
+
+.level-complete-msg { font-size: 18px; color: #ffaa00; margin: 10px 0; }
+
+#replayBtn { padding: 12px 20px; font-size: 18px; cursor: pointer; background: #00E676; color: #000; border: none; border-radius: 5px; font-weight: bold; width: 100%; text-transform: uppercase; box-shadow: 0 0 10px rgba(0,230,118,0.4); }
+
+#bloomCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 90;
+    display: none;
+}
