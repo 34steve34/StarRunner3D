@@ -1,4 +1,4 @@
-// Star Runner 3D v2.0.1 - Main Game Logic
+﻿// Star Runner 3D v2.0.1 - Main Game Logic
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG, LEVELS } from './game/config.js';
