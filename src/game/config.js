@@ -15,7 +15,7 @@ export const LEVELS = {
         courseType: 'cylindrical',
         gates: 5, 
         targets: 3, 
-        debris: 3,
+        debris: 5,
         star3: 90, // 1:30 for 3 stars
         star2: 120, // 2:00 for 2 stars
         star1: 150, // 2:30 for 1 star
@@ -41,3 +41,4 @@ export const LEVELS = {
         autoZeroTime: 6.0
     }
 };
+
