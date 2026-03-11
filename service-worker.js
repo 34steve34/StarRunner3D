@@ -2,8 +2,8 @@
 // Converted from Star Stream 3D to obstacle course racing game
 // Features: Gates, Targets, Space Debris, Thrust Slider, Level System
 
-// Import version from centralized location
-import { VERSION } from './version.js';
+// Import version using service worker compatible method
+self.importScripts('./version.js');
 
 const CACHE_NAME = `star-runner-3D-v${VERSION}`;
 const urlsToCache = [
