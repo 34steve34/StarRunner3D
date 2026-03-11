@@ -2098,6 +2098,7 @@ import { VERSION } from '../version.js';
             gravityStableDuration += dt;
             // If gravity has been stable long enough, we're detecting drift
             const currentAutoZeroTime = LEVELS[currentLevel]?.autoZeroTime || 6.0;
+            console.log(`Auto-zero: Level ${currentLevel}, Time: ${currentAutoZeroTime}s, Stable for: ${gravityStableDuration.toFixed(1)}s`);
             driftDetected = gravityStableDuration > currentAutoZeroTime;
         } else {
             // Gravity changed - phone is actually moving, reset
