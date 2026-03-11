@@ -18,7 +18,8 @@ export const LEVELS = {
         debris: 3,
         star3: 90, // 1:30 for 3 stars
         star2: 120, // 2:00 for 2 stars
-        star1: 150 // 2:30 for 1 star
+        star1: 150, // 2:30 for 1 star
+        autoZeroTime: 6.0 // Seconds of stability before auto-zero kicks in
     },
     2: { 
         courseType: 'rectangular',
@@ -27,7 +28,8 @@ export const LEVELS = {
         debris: 5,
         star3: 120,
         star2: 150,
-        star1: 180
+        star1: 180,
+        autoZeroTime: 6.0
     },
     3: {
         courseType: 'spheres',
@@ -35,6 +37,7 @@ export const LEVELS = {
         orbsPerSphere: [3, 4, 5],
         star3: 180,
         star2: 240,
-        star1: 300
+        star1: 300,
+        autoZeroTime: 6.0
     }
 };
