@@ -36,7 +36,7 @@ import { VERSION } from '../version.js';
 		let gravityStableDuration = 0;
 		let driftDetected = false;
 		const GRAVITY_STABLE_THRESHOLD = 2; // Degrees - how much gravity can change and still be "stable"
-		const GRAVITY_STABLE_TIME = 2.0; // Seconds of gravity stability before correcting drift
+		// GRAVITY_STABLE_TIME is now level-specific (see LEVELS config)
 		const DRIFT_CORRECTION_SPEED = 0.05; // 5% correction per frame when drift detected
         
         // === RECTANGULAR TUNNEL ===
@@ -2097,7 +2097,8 @@ import { VERSION } from '../version.js';
         if (gravityIsStable && dt > 0) {
             gravityStableDuration += dt;
             // If gravity has been stable long enough, we're detecting drift
-            driftDetected = gravityStableDuration > GRAVITY_STABLE_TIME;
+            const currentAutoZeroTime = LEVELS[currentLevel]?.autoZeroTime || 6.0;
+            driftDetected = gravityStableDuration > currentAutoZeroTime;
         } else {
             // Gravity changed - phone is actually moving, reset
             gravityStableDuration = 0;
