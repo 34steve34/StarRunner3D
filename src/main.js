@@ -234,10 +234,14 @@ import { VERSION } from '../version.js';
             updateBloom();
             
             // === DRIFT CORRECTION ===
-            // Apply correction when drift is detected (gyro drifting while gravity stable)
+            // Smart correction: Roll toward level, Pitch only drift correction
             if (driftDetected) {
-                relativeTilt.p *= (1 - DRIFT_CORRECTION_SPEED);
-                relativeTilt.y *= (1 - DRIFT_CORRECTION_SPEED);
+                // Roll: Always drift toward 0° (level left-right)
+                relativeTilt.y *= (1 - DRIFT_CORRECTION_SPEED * 2); // Faster roll correction
+                
+                // Pitch: Only correct if we detect actual drift (preserve user's preferred angle)
+                // For now, use gentle correction - could be smarter in future
+                relativeTilt.p *= (1 - DRIFT_CORRECTION_SPEED * 0.5); // Gentler pitch correction
             }
             
             if (ship && isInitialized && !isRespawning) {
@@ -2089,23 +2093,44 @@ import { VERSION } from '../version.js';
         }
         
         // Calculate how much gravity orientation has changed
-        const betaChange = Math.abs(currentBeta - lastGravityOrientation.beta);
-        const gammaChange = Math.abs(currentGamma - lastGravityOrientation.gamma);
-        const gravityIsStable = betaChange < GRAVITY_STABLE_THRESHOLD && 
-                               gammaChange < GRAVITY_STABLE_THRESHOLD;
+        // Check roll stability for smart auto-zero (roll should always be level)
+        const rollChange = Math.abs(currentGamma - lastGravityOrientation.gamma);
+        const rollIsStable = rollChange < GRAVITY_STABLE_THRESHOLD;
         
-        if (gravityIsStable && dt > 0) {
+        // SMART GRAVITY FUSION - Assess reliability and apply corrections
+        gravityReliability = assessGravityReliability(currentBeta, currentGamma, currentRotationRate, lastAccelMagnitude);
+        
+        // Debug: Log when gravity becomes unreliable
+        if (gravityReliability.overall < 0.5) {
+            console.log(`Gravity unreliable - Pure gyro mode: ${gravityReliability.overall < 0.3 ? 'Fast movement' : gravityReliability.pitch < 0.5 ? 'Gimbal lock' : 'Acceleration'}`);
+        }
+        
+        // Apply gravity-assisted corrections when reliable
+        if (gravityReliability.pitch > 0.7 && gravityReliability.overall > 0.5) {
+            // Pitch: Gentle blend toward gravity when reliable
+            const pitchTarget = currentBeta * 0.3; // Scale down gravity influence
+            const pitchBlend = gravityReliability.pitch * gravityReliability.overall * 0.01;
+            relativeTilt.p = relativeTilt.p * (1 - pitchBlend) + pitchTarget * pitchBlend;
+        }
+        
+        if (gravityReliability.roll > 0.7 && gravityReliability.overall > 0.5) {
+            // Roll: Gentle blend toward level (0°) when reliable
+            const rollTarget = currentGamma * 0.3; // Scale down gravity influence
+            const rollBlend = gravityReliability.roll * gravityReliability.overall * 0.01;
+            relativeTilt.y = relativeTilt.y * (1 - rollBlend) + rollTarget * rollBlend;
+        }
+        
+        if (rollIsStable && dt > 0) {
             gravityStableDuration += dt;
-            // If gravity has been stable long enough, we're detecting drift
+            // If roll has been stable long enough, correct roll drift
             const currentAutoZeroTime = LEVELS[currentLevel]?.autoZeroTime || 6.0;
-            console.log(`Auto-zero: Level ${currentLevel}, Time: ${currentAutoZeroTime}s, Stable for: ${gravityStableDuration.toFixed(1)}s`);
+            console.log(`Auto-zero: Level ${currentLevel}, Time: ${currentAutoZeroTime}s, Stable for: ${gravityStableDuration.toFixed(1)}s, Reliability: P${(gravityReliability.pitch*100).toFixed(0)}% R${(gravityReliability.roll*100).toFixed(0)}% O${(gravityReliability.overall*100).toFixed(0)}%`);
             driftDetected = gravityStableDuration > currentAutoZeroTime;
         } else {
-            // Gravity changed - phone is actually moving, reset
+            // Roll changed - phone is actually moving, reset
             gravityStableDuration = 0;
             driftDetected = false;
-            lastGravityOrientation.beta = currentBeta;
-            lastGravityOrientation.gamma = currentGamma;
+            lastGravityOrientation.gamma = currentGamma; // Only track gamma (roll) for stability
         }
         
         // Update debug display
@@ -2543,6 +2568,41 @@ import { VERSION } from '../version.js';
             }
         }
 
+		// === SMART SENSOR FUSION ===
+		// Intelligent hybrid gyro + gravity system with reliability assessment
+		let lastAccelMagnitude = 9.8;
+		let gravityReliability = { pitch: 1.0, roll: 1.0, overall: 1.0 };
+		
+		function assessGravityReliability(beta, gamma, gyroRates, accelMagnitude) {
+		    const reliability = { pitch: 1.0, roll: 1.0, overall: 1.0 };
+		    
+		    // 1. Gimbal lock detection
+		    if (Math.abs(beta) > 85) {
+		        reliability.roll = 0.1; // Near vertical - gamma unreliable
+		    }
+		    if (Math.abs(gamma) > 85) {
+		        reliability.pitch = 0.1; // Near 90° roll - beta unreliable
+		    }
+		    
+		    // 2. Rapid movement detection
+		    const totalRotationRate = Math.abs(gyroRates.alpha) + Math.abs(gyroRates.beta) + Math.abs(gyroRates.gamma);
+		    if (totalRotationRate > 50) { // deg/sec
+		        reliability.overall *= 0.3; // Moving too fast - gravity lags
+		    }
+		    
+		    // 3. Acceleration detection (not just gravity)
+		    if (Math.abs(accelMagnitude - 9.8) > 2.0) {
+		        reliability.overall *= 0.2; // Phone accelerating - not pure gravity
+		    }
+		    
+		    // 4. Consistency check
+		    if (accelMagnitude < 8 || accelMagnitude > 12) {
+		        reliability.overall = 0.1; // Gravity vector doesn't make sense
+		    }
+		    
+		    return reliability;
+		}
+
 		// === GYRO MOTION HANDLER ===
 		const GYRO_PITCH_GAIN = 0.05;
 		const GYRO_YAW_GAIN   = 0.03;
@@ -2558,18 +2618,36 @@ import { VERSION } from '../version.js';
 		            gamma: Math.abs((e.rotationRate.gamma || 0) * (180 / Math.PI))
 		        };
 		        
+		        // Calculate acceleration magnitude for gravity reliability
+		        const accel = e.accelerationIncludingGravity || {};
+		        const accelMagnitude = Math.sqrt(
+		            (accel.x || 0) ** 2 + (accel.y || 0) ** 2 + (accel.z || 0) ** 2
+		        );
+		        lastAccelMagnitude = accelMagnitude;
+		        
 		        const now = performance.now();
 		        if (lastMotionTime > 0) {
 		            const dt = (now - lastMotionTime) / 1000;
 		            
-		            // Integrate rotation rates to get relative tilt
+		            // Get raw gyro rates
 		            let pitchRate = (e.rotationRate.beta || 0) * (180 / Math.PI);
 		            let yawRate   = -(e.rotationRate.gamma || 0) * (180 / Math.PI);
-		            if (Math.abs(pitchRate) > RATE_DEADZONE) {
+		            
+		            // SMART SENSOR FUSION - Apply gyro with or without deadzone based on reliability
+		            const usingSmartFusion = true; // Easy toggle for rollback
+		            
+		            if (usingSmartFusion) {
+		                // Always integrate gyro (no deadzone for precision)
 		                relativeTilt.p += pitchRate * dt * GYRO_PITCH_GAIN;
-		            }
-		            if (Math.abs(yawRate) > RATE_DEADZONE) {
 		                relativeTilt.y += yawRate * dt * GYRO_YAW_GAIN;
+		            } else {
+		                // ORIGINAL SYSTEM (for easy rollback)
+		                if (Math.abs(pitchRate) > RATE_DEADZONE) {
+		                    relativeTilt.p += pitchRate * dt * GYRO_PITCH_GAIN;
+		                }
+		                if (Math.abs(yawRate) > RATE_DEADZONE) {
+		                    relativeTilt.y += yawRate * dt * GYRO_YAW_GAIN;
+		                }
 		            }
 		            
 		            // Clamp pitch to prevent extreme values
