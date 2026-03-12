@@ -2134,7 +2134,9 @@ import { VERSION } from '../version.js';
         }
         
         // Update debug display
-        updateAutoZeroDebug(betaChange, gammaChange, gravityIsStable, gravityStableDuration, driftDetected);
+        const betaChange = Math.abs(currentBeta - lastGravityOrientation.beta);
+        const gammaChange = Math.abs(currentGamma - lastGravityOrientation.gamma);
+        updateAutoZeroDebug(betaChange, gammaChange, rollIsStable, gravityStableDuration, driftDetected);
     }
 }
 
