@@ -32,11 +32,11 @@ export class WormholeSpiral {
             
             console.log('🌀 Level 4: Wormhole Spiral - Beginning cosmic journey...');
             
-            // Ship starts looking into blank space
-            ship.position.set(0, 0, 0);
+            // Ship starts looking into blank space from 45 degree angle
+            ship.position.set(-1000, 500, 500); // 45 degree approach angle
             ship.visible = true;
             ship.rotation.set(0, 0, 0);
-            ship.rotateY(Math.PI);
+            ship.rotateY(Math.PI * 0.75); // Face toward wormhole at angle
             
             console.log('Ship spawned at:', ship.position);
             
@@ -271,11 +271,31 @@ export class WormholeSpiral {
             // Create spiral ribbon
             this.createSpiralRibbon();
             
-            // Position ship ON the spiral ribbon
-            ship.position.set(this.levelData.cylinderRadius, 0, 0);
+            // Position ship ON the spiral ribbon - belly tangent to surface, nose down the spiral
+            // Ship starts at one end of the spiral (angle = 0)
+            const startAngle = 0;
+            const startX = this.levelData.cylinderRadius * Math.cos(startAngle);
+            const startZ = this.levelData.cylinderRadius * Math.sin(startAngle);
+            const startY = 0; // Top of spiral
+            
+            ship.position.set(startX, startY, startZ);
             ship.rotation.set(0, 0, 0);
-            ship.rotateY(Math.PI);
-            ship.rotateX(Math.PI / 2); // Belly down on ribbon
+            
+            // Orient ship so:
+            // - Belly is tangent to the ribbon surface (perpendicular to radius)
+            // - Nose points down the spiral (forward along the path)
+            // - Pitch control affects descent rate
+            
+            // First, rotate to face along the spiral direction
+            const spiralDirection = new THREE.Vector3(
+                -Math.sin(startAngle), // Perpendicular to radius
+                0,
+                Math.cos(startAngle)
+            );
+            ship.lookAt(ship.position.clone().add(spiralDirection));
+            
+            // Then rotate so belly is on the ribbon (nose points up from surface)
+            ship.rotateX(Math.PI / 2);
             
             console.log('🎢 Ship on spiral at:', ship.position);
             return { customControls: false, fadeToBlack: true };
@@ -360,12 +380,35 @@ export class WormholeSpiral {
     updateSpiral(ship, _camera, _dt) {
         const { spiralTurns, cylinderRadius, cylinderHeight, ribbonWidth } = this.levelData;
         
+        // Calculate ship's position on the spiral
         const currentAngle = Math.atan2(ship.position.z, ship.position.x);
         const spiralT = (currentAngle + Math.PI) / (spiralTurns * Math.PI * 2);
         
+        // Keep ship at correct height for current angle
         const targetY = -spiralT * cylinderHeight;
         ship.position.y = targetY;
         
+        // Keep ship at correct radius (on the ribbon)
+        const currentRadius = Math.sqrt(ship.position.x ** 2 + ship.position.z ** 2);
+        if (Math.abs(currentRadius - cylinderRadius) > 5) {
+            // Adjust position to keep on ribbon
+            const angle = Math.atan2(ship.position.z, ship.position.x);
+            ship.position.x = cylinderRadius * Math.cos(angle);
+            ship.position.z = cylinderRadius * Math.sin(angle);
+        }
+        
+        // Maintain ship orientation: belly tangent to ribbon, nose down spiral
+        const angle = Math.atan2(ship.position.z, ship.position.x);
+        const spiralDirection = new THREE.Vector3(
+            -Math.sin(angle),
+            -1, // Pointing downward along spiral
+            Math.cos(angle)
+        ).normalize();
+        
+        ship.lookAt(ship.position.clone().add(spiralDirection));
+        ship.rotateX(Math.PI / 2); // Belly on ribbon
+        
+        // Check if ship fell off ribbon edge
         const distanceFromCenter = Math.sqrt(ship.position.x ** 2 + ship.position.z ** 2);
         const ribbonRadius = cylinderRadius;
         const ribbonHalfWidth = ribbonWidth / 2;
