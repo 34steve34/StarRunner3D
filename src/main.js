@@ -282,7 +282,13 @@ import { WormholeSpiral } from './levels/level4.js';
                 }
                 
                 // Thrust with slider value
-                if (thrustValue > 0) {
+                // Check if level 4 is disabling thrust (during star-fall)
+                let thrustDisabled = false;
+                if (level4Instance && level4Instance.phase === 'entrapment') {
+                    thrustDisabled = true;
+                }
+                
+                if (thrustValue > 0 && !thrustDisabled) {
                     const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion).normalize();
                     velocityVec.add(dir.multiplyScalar(CONFIG.ACCEL_FORCE * thrustValue));
                     if (velocityVec.length() > CONFIG.MAX_VELOCITY) velocityVec.setLength(CONFIG.MAX_VELOCITY);
