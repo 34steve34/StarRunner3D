@@ -326,7 +326,7 @@ import { WormholeSpiral } from './levels/level4.js';
                                 // Disable normal ship controls
                             }
                             if (result.levelComplete) {
-                                showResults();
+                                checkLevelComplete();
                             }
                         } catch (error) {
                             console.error('Error in Level 4 update:', error);
