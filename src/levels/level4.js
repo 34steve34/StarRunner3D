@@ -39,6 +39,10 @@ export class WormholeSpiral {
             ship.position.set(0, 0, -100); // Start position
             ship.visible = true; // Ensure ship is visible
             ship.rotation.set(0, 0, 0); // Reset rotation
+            ship.rotateY(Math.PI); // Face forward (ship model faces backward by default)
+            
+            console.log('Ship positioned at:', ship.position.x, ship.position.y, ship.position.z);
+            console.log('Ship visible set to:', ship.visible);
             
             // Store original camera radius for later use
             this.originalCameraRadius = CONFIG.CAMERA_RADIUS || 80;
@@ -72,55 +76,67 @@ export class WormholeSpiral {
         // Create the distant blue infinity pool structure
         this.wormholeStructure = new THREE.Group();
         
-        // Central ring (the drain) - moved much closer
-        const ringGeometry = new THREE.TorusGeometry(200, 20, 8, 32);
+        // Central ring (the drain) - bigger and closer
+        const ringGeometry = new THREE.TorusGeometry(150, 25, 8, 32);
         const ringMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x0088ff, 
+            color: 0x00aaff, 
             transparent: true, 
-            opacity: 0.8 
+            opacity: 1.0
         });
         const centralRing = new THREE.Mesh(ringGeometry, ringMaterial);
-        centralRing.position.set(0, 0, -800); // Much closer - was -3000
+        centralRing.position.set(0, 0, -300); // Even closer
         this.wormholeStructure.add(centralRing);
         
-        // Infinity pool  plane
-        const planeGeometry = new THREE.PlaneGeometry(1000, 1000, 32, 32);
+        // Add a bright light to make it visible
+        const ringLight = new THREE.PointLight(0x00aaff, 3000, 800);
+        ringLight.position.set(0, 0, -300);
+        this.wormholeStructure.add(ringLight);
+        
+        // Infinity pool plane - bigger and more dramatic
+        const planeGeometry = new THREE.PlaneGeometry(800, 800, 16, 16);
         const planeMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x001144, 
+            color: 0x003388, 
             transparent: true, 
-            opacity: 0.3,
+            opacity: 0.8,
             side: THREE.DoubleSide
         });
         const poolPlane = new THREE.Mesh(planeGeometry, planeMaterial);
-        poolPlane.position.set(0, 0, -800); // Much closer - was -3000
+        poolPlane.position.set(0, 0, -300);
         poolPlane.rotation.x = -Math.PI / 2;
         this.wormholeStructure.add(poolPlane);
+        
+        console.log('Wormhole structure created at z=-300');
         
         this.scene.add(this.wormholeStructure);
     }
 
     createBlueStarField() {
-        // Create flowing blue stars around the wormhole
-        const starCount = 500;
+        // Create flowing blue stars properly aligned around the wormhole
+        const starCount = 300; // Fewer but more visible
+        const wormholeZ = -300; // Match wormhole position
+        
         for (let i = 0; i < starCount; i++) {
             const star = new THREE.Mesh(
-                new THREE.SphereGeometry(2, 6, 6),
+                new THREE.SphereGeometry(3, 8, 8), // Bigger stars
                 new THREE.MeshBasicMaterial({ color: 0x0088ff })
             );
             
-            // Random position around the wormhole
+            // Position stars in a cylinder around the wormhole
             const angle = Math.random() * Math.PI * 2;
-            const distance = 500 + Math.random() * 1500;
+            const distance = 200 + Math.random() * 400; // 200-600 units from center
+            const height = (Math.random() - 0.5) * 300; // ±150 units vertically
+            
             star.position.set(
                 Math.cos(angle) * distance,
-                (Math.random() - 0.5) * 200,
-                -800 + (Math.random() - 0.5) * 500 // Centered around closer wormhole
+                height,
+                wormholeZ + (Math.random() - 0.5) * 200 // ±100 units around wormhole Z
             );
             
             star.userData = { 
                 angle: angle,
                 distance: distance,
-                flowSpeed: 0.5 + Math.random() * 1.0
+                originalZ: star.position.z,
+                flowSpeed: 0.3 + Math.random() * 0.7
             };
             
             this.blueStars.push(star);
@@ -213,6 +229,9 @@ export class WormholeSpiral {
 
     update(ship, camera, dt) {
         console.log('Level 4 update called, phase:', this.phase);
+        console.log('Ship position in update:', ship.position.x, ship.position.y, ship.position.z);
+        console.log('Ship visible in update:', ship.visible);
+        
         if (this.phase === 'approach') {
             return this.updateApproach(ship, camera, dt);
         } else if (this.phase === 'entrapment') {
@@ -225,26 +244,27 @@ export class WormholeSpiral {
     }
 
     updateApproach(ship, _camera, dt) {
-        // Update flowing blue stars
+        // Update flowing blue stars - flow toward wormhole center
         this.blueStars.forEach(star => {
-            // Flow toward center
-            star.userData.distance -= star.userData.flowSpeed * dt * 50;
+            // Flow inward toward wormhole
+            star.userData.distance -= star.userData.flowSpeed * dt * 30;
             
-            if (star.userData.distance < 50) {
+            if (star.userData.distance < 100) {
                 // Reset star to outer edge
-                star.userData.distance = 500 + Math.random() * 1500;
+                star.userData.distance = 200 + Math.random() * 400;
             }
             
+            // Update position
             star.position.set(
                 Math.cos(star.userData.angle) * star.userData.distance,
                 star.position.y,
-                star.position.z
+                star.userData.originalZ
             );
         });
         
-        // Check if ship is close enough to get trapped (updated for closer wormhole)
-        const distanceToWormhole = ship.position.distanceTo(new THREE.Vector3(0, 0, -800));
-        if (distanceToWormhole < 400) { // Reduced from 800 since wormhole is closer
+        // Check if ship is close enough to get trapped
+        const distanceToWormhole = ship.position.distanceTo(new THREE.Vector3(0, 0, -300));
+        if (distanceToWormhole < 250) {
             this.phase = 'entrapment';
             this.entrappedTime = 0;
             console.log('🌀 Ship caught in wormhole gravity!');
@@ -257,33 +277,42 @@ export class WormholeSpiral {
     updateEntrapment(ship, camera, dt) {
         this.entrappedTime += dt;
         
-        // Pull ship toward wormhole center (updated position)
-        const wormholeCenter = new THREE.Vector3(0, 0, -800);
+        // Pull ship toward wormhole center
+        const wormholeCenter = new THREE.Vector3(0, 0, -300);
         const direction = new THREE.Vector3().subVectors(wormholeCenter, ship.position).normalize();
-        ship.position.add(direction.multiplyScalar(dt * 200));
+        ship.position.add(direction.multiplyScalar(dt * 150));
         
-        // Dramatic camera pullback
-        const targetRadius = this.originalCameraRadius + (this.entrappedTime * 100);
-        camera.position.sub(ship.position).normalize().multiplyScalar(targetRadius).add(ship.position);
+        // DON'T zoom camera out - keep it close for drama
+        // Just add some gentle shake instead
+        if (Math.random() < 0.3) {
+            camera.position.add(new THREE.Vector3(
+                (Math.random() - 0.5) * 5,
+                (Math.random() - 0.5) * 5,
+                (Math.random() - 0.5) * 2
+            ));
+        }
         
-        // After 30 seconds, transition to spiral
-        if (this.entrappedTime >= 30) {
+        // Shorter entrapment time - 5 seconds instead of 30
+        if (this.entrappedTime >= 5) {
             this.phase = 'spiral';
             this.spiralProgress = 0;
             
             // Clean up wormhole visuals
             this.scene.remove(this.wormholeStructure);
             this.blueStars.forEach(star => this.scene.remove(star));
+            this.blueStars = [];
             
             // Create spiral ribbon
             this.createSpiralRibbon();
             
-            // Position ship at top of spiral
-            ship.position.set(this.levelData.cylinderRadius, 0, 0);
+            // Position ship properly at START of spiral
+            ship.position.set(this.levelData.cylinderRadius, 50, 0); // Elevated above spiral
             ship.rotation.set(0, 0, 0); // Reset ship rotation
+            ship.rotateY(Math.PI); // Face forward
             
             console.log('🎢 Beginning spiral descent!');
-            return { customControls: false, fadeToBlack: true }; // Brief fade transition
+            console.log('Ship positioned at spiral start:', ship.position);
+            return { customControls: false }; // Re-enable controls
         }
         
         return { customControls: true };
