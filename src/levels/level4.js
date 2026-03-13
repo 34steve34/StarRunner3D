@@ -111,32 +111,32 @@ export class WormholeSpiral {
     }
 
     createBlueStarField() {
-        // Create flowing blue stars properly aligned around the wormhole
-        const starCount = 300; // Fewer but more visible
-        const wormholeZ = -300; // Match wormhole position
+        // Create sparse blue stars around the distant wormhole
+        const starCount = 100; // Much fewer, more sparse
+        const wormholeZ = -1500; // Match distant wormhole position
         
         for (let i = 0; i < starCount; i++) {
             const star = new THREE.Mesh(
-                new THREE.SphereGeometry(3, 8, 8), // Bigger stars
+                new THREE.SphereGeometry(1.5, 6, 6), // Small distant stars
                 new THREE.MeshBasicMaterial({ color: 0x0088ff })
             );
             
-            // Position stars in a cylinder around the wormhole
+            // Sparse distribution around the distant wormhole
             const angle = Math.random() * Math.PI * 2;
-            const distance = 200 + Math.random() * 400; // 200-600 units from center
-            const height = (Math.random() - 0.5) * 300; // ±150 units vertically
+            const distance = 300 + Math.random() * 800; // 300-1100 units from center
+            const height = (Math.random() - 0.5) * 400; // ±200 units vertically
             
             star.position.set(
                 Math.cos(angle) * distance,
                 height,
-                wormholeZ + (Math.random() - 0.5) * 200 // ±100 units around wormhole Z
+                wormholeZ + (Math.random() - 0.5) * 600 // ±300 units around wormhole Z
             );
             
             star.userData = { 
                 angle: angle,
                 distance: distance,
                 originalZ: star.position.z,
-                flowSpeed: 0.3 + Math.random() * 0.7
+                flowSpeed: 0.2 + Math.random() * 0.3 // Slower flow
             };
             
             this.blueStars.push(star);
@@ -244,14 +244,14 @@ export class WormholeSpiral {
     }
 
     updateApproach(ship, _camera, dt) {
-        // Update flowing blue stars - flow toward wormhole center
+        // Update flowing blue stars - slow drift toward distant wormhole
         this.blueStars.forEach(star => {
-            // Flow inward toward wormhole
-            star.userData.distance -= star.userData.flowSpeed * dt * 30;
+            // Slow flow inward toward distant wormhole
+            star.userData.distance -= star.userData.flowSpeed * dt * 20;
             
-            if (star.userData.distance < 100) {
+            if (star.userData.distance < 200) {
                 // Reset star to outer edge
-                star.userData.distance = 200 + Math.random() * 400;
+                star.userData.distance = 300 + Math.random() * 800;
             }
             
             // Update position
@@ -262,9 +262,9 @@ export class WormholeSpiral {
             );
         });
         
-        // Check if ship is close enough to get trapped
-        const distanceToWormhole = ship.position.distanceTo(new THREE.Vector3(0, 0, -300));
-        if (distanceToWormhole < 250) {
+        // Check if ship is close enough to get trapped - must fly TO the distant wormhole
+        const distanceToWormhole = ship.position.distanceTo(new THREE.Vector3(0, 0, -1500));
+        if (distanceToWormhole < 300) { // Only when very close to the distant spec
             this.phase = 'entrapment';
             this.entrappedTime = 0;
             console.log('🌀 Ship caught in wormhole gravity!');
@@ -278,7 +278,7 @@ export class WormholeSpiral {
         this.entrappedTime += dt;
         
         // Pull ship toward wormhole center
-        const wormholeCenter = new THREE.Vector3(0, 0, -300);
+        const wormholeCenter = new THREE.Vector3(0, 0, -1500);
         const direction = new THREE.Vector3().subVectors(wormholeCenter, ship.position).normalize();
         ship.position.add(direction.multiplyScalar(dt * 150));
         
@@ -305,13 +305,13 @@ export class WormholeSpiral {
             // Create spiral ribbon
             this.createSpiralRibbon();
             
-            // Position ship properly at START of spiral
-            ship.position.set(this.levelData.cylinderRadius, 50, 0); // Elevated above spiral
+            // Position ship ON the spiral ribbon at the start
+            ship.position.set(this.levelData.cylinderRadius, 0, 0); // ON the ribbon, not above
             ship.rotation.set(0, 0, 0); // Reset ship rotation
-            ship.rotateY(Math.PI); // Face forward
+            ship.rotateY(Math.PI); // Face forward along the spiral
             
             console.log('🎢 Beginning spiral descent!');
-            console.log('Ship positioned at spiral start:', ship.position);
+            console.log('Ship positioned ON spiral ribbon at:', ship.position);
             return { customControls: false }; // Re-enable controls
         }
         
