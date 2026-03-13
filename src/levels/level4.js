@@ -16,21 +16,33 @@ export class WormholeSpiral {
     }
 
     spawn(scene, levelData, CONFIG, ship) {
-        this.scene = scene;
-        this.levelData = levelData;
-        this.CONFIG = CONFIG;
-        
-        console.log('🌀 Level 4: Wormhole Spiral - Beginning cosmic journey...');
-        console.log('Ship position at spawn:', ship?.position);
-        
-        // Start with approach phase - ship stays in its current position
-        this.createWormholeStructure();
-        this.createBlueStarField();
-        
-        return {
-            phase: this.phase,
-            customControls: false // Normal controls during approach
-        };
+        try {
+            this.scene = scene;
+            this.levelData = levelData;
+            this.CONFIG = CONFIG;
+            
+            console.log('🌀 Level 4: Wormhole Spiral - Beginning cosmic journey...');
+            console.log('Ship position at spawn:', ship?.position);
+            console.log('Ship visible:', ship?.visible);
+            
+            // Start with approach phase - ship stays in its current position
+            this.createWormholeStructure();
+            this.createBlueStarField();
+            
+            console.log('Level 4 spawn completed successfully');
+            
+            return {
+                phase: this.phase,
+                customControls: false // Normal controls during approach
+            };
+        } catch (error) {
+            console.error('Error in Level 4 spawn:', error);
+            // Return safe defaults if spawn fails
+            return {
+                phase: 'approach',
+                customControls: false
+            };
+        }
     }
 
     createWormholeStructure() {
