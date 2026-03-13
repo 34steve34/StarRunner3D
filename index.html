@@ -116,31 +116,56 @@
         
         // Update instructions based on selected level
         function updateInstructions(level) {
-            // Hide all instructions
-            for (let i = 1; i <= 4; i++) {
-                const instructions = document.getElementById(`level${i}Instructions`);
-                if (instructions) instructions.style.display = 'none';
-            }
-            
-            // Show selected level instructions
-            const selectedInstructions = document.getElementById(`level${level}Instructions`);
-            if (selectedInstructions) {
-                selectedInstructions.style.display = 'block';
+            try {
+                console.log('Updating instructions for level:', level);
+                
+                // Hide all instructions
+                for (let i = 1; i <= 4; i++) {
+                    const instructions = document.getElementById(`level${i}Instructions`);
+                    if (instructions) {
+                        instructions.style.display = 'none';
+                    }
+                }
+                
+                // Show selected level instructions
+                const selectedInstructions = document.getElementById(`level${level}Instructions`);
+                if (selectedInstructions) {
+                    selectedInstructions.style.display = 'block';
+                    console.log(`Showing level ${level} instructions`);
+                } else {
+                    console.error(`Instructions for level ${level} not found`);
+                }
+            } catch (error) {
+                console.error('Error updating instructions:', error);
             }
         }
         
         // Set up level button listeners
         document.addEventListener('DOMContentLoaded', () => {
-            const levelButtons = document.querySelectorAll('.level-btn');
-            levelButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const level = btn.getAttribute('data-level');
-                    updateInstructions(level);
+            try {
+                console.log('Setting up level button listeners');
+                
+                const levelButtons = document.querySelectorAll('.level-btn');
+                console.log('Found level buttons:', levelButtons.length);
+                
+                levelButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        try {
+                            const level = btn.getAttribute('data-level');
+                            console.log('Level button clicked:', level);
+                            updateInstructions(level);
+                        } catch (error) {
+                            console.error('Error in level button click:', error);
+                        }
+                    });
                 });
-            });
-            
-            // Show Level 1 instructions by default
-            updateInstructions(1);
+                
+                // Show Level 1 instructions by default
+                updateInstructions(1);
+                
+            } catch (error) {
+                console.error('Error setting up level buttons:', error);
+            }
         });
     </script>
     <script type="module" src="src/main.js"></script>
