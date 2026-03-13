@@ -24,10 +24,31 @@
             <div id="splashInfo">
                 <h2>STAR RUNNER 3D</h2>
                 <div id="levelInstructions" style="margin: 15px 0; font-size: 14px; color: #ddd; line-height: 1.6;">
-                    <div style="margin: 8px 0;">🌟 <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
-                    <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
-                    <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
-                    <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
+                    <div id="level1Instructions" style="display: none;">
+                        <div style="margin: 8px 0;">🌟 <span style="color: #ffff00;">Yellow Gates</span> → Fly through to turn <span style="color: #44ff44;">Green</span></div>
+                        <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Targets</span> → Shoot to turn <span style="color: #44ff44;">Green</span></div>
+                        <div style="margin: 8px 0;">💥 Space Junk → Avoid or respawn!</div>
+                        <div style="margin: 8px 0;">⏱️ Faster time = More stars ⭐⭐⭐</div>
+                    </div>
+                    <div id="level2Instructions" style="display: none;">
+                        <div style="margin: 8px 0;">🟠 <span style="color: #ff8800;">Orange Tunnel</span> → Navigate the rectangular course</div>
+                        <div style="margin: 8px 0;">🚧 Colored Panels → Pass through to turn <span style="color: #44ff44;">Green</span></div>
+                        <div style="margin: 8px 0;">💥 Hit walls = Respawn!</div>
+                        <div style="margin: 8px 0;">⏱️ Smooth flying = Better time ⭐⭐⭐</div>
+                    </div>
+                    <div id="level3Instructions" style="display: none;">
+                        <div style="margin: 8px 0;">🔵 <span style="color: #0088ff;">Blue Spheres</span> → Enter and clear all orbs</div>
+                        <div style="margin: 8px 0;">🎯 <span style="color: #ff4444;">Red Orbs</span> → Shoot to destroy</div>
+                        <div style="margin: 8px 0;">💫 Sphere walls = Bounce back!</div>
+                        <div style="margin: 8px 0;">⏱️ Quick clearing = More stars ⭐⭐⭐</div>
+                    </div>
+                    <div id="level4Instructions" style="display: none;">
+                        <div style="margin: 8px 0;">🌀 <span style="color: #0088ff;">Cosmic Wormhole</span> → Journey into the unknown</div>
+                        <div style="margin: 8px 0;">🎢 <span style="color: #ff6600;">Spiral Road</span> → Race down the ribbon track</div>
+                        <div style="margin: 8px 0;">🔵 Blue Obstacles → Avoid or get shaken!</div>
+                        <div style="margin: 8px 0;">💀 Fall off edge = Death and restart!</div>
+                        <div style="margin: 8px 0;">⏱️ Fast descent = More stars ⭐⭐⭐</div>
+                    </div>
                 </div>
                 <div id="secondaryInstructions" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,230,118,0.3); font-size: 12px; color: #aaa; line-height: 1.4;">
                     • Slide thrust up for speed<br>
@@ -92,6 +113,35 @@
         import { VERSION } from './version.js';
         document.getElementById('displayVersion').textContent = VERSION;
         document.title = `Star Runner 3D - v${VERSION}`;
+        
+        // Update instructions based on selected level
+        function updateInstructions(level) {
+            // Hide all instructions
+            for (let i = 1; i <= 4; i++) {
+                const instructions = document.getElementById(`level${i}Instructions`);
+                if (instructions) instructions.style.display = 'none';
+            }
+            
+            // Show selected level instructions
+            const selectedInstructions = document.getElementById(`level${level}Instructions`);
+            if (selectedInstructions) {
+                selectedInstructions.style.display = 'block';
+            }
+        }
+        
+        // Set up level button listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            const levelButtons = document.querySelectorAll('.level-btn');
+            levelButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const level = btn.getAttribute('data-level');
+                    updateInstructions(level);
+                });
+            });
+            
+            // Show Level 1 instructions by default
+            updateInstructions(1);
+        });
     </script>
     <script type="module" src="src/main.js"></script>
 </body>
