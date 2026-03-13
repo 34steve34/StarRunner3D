@@ -1,4 +1,4 @@
-// Star Runner 3D v2.0.0 - Game Configuration
+// Star Runner 3D v2.0.4 - Game Configuration
 
 export const CONFIG = {
     MAX_VELOCITY: 1.5, DRIFT_INERTIA: 0.95, ACCEL_FORCE: 0.08, BULLET_SPEED: 9,
@@ -15,7 +15,7 @@ export const LEVELS = {
         courseType: 'cylindrical',
         gates: 5, 
         targets: 3, 
-        debris: 5,
+        debris: 3,
         star3: 90, // 1:30 for 3 stars
         star2: 120, // 2:00 for 2 stars
         star1: 150, // 2:30 for 1 star
@@ -39,6 +39,17 @@ export const LEVELS = {
         star2: 240,
         star1: 300,
         autoZeroTime: 6.0
+    },
+    4: {
+        courseType: 'wormhole-spiral',
+        spiralTurns: 8,           // How many times around the spiral
+        ribbonWidth: 120,         // Width of the road
+        cylinderRadius: 300,      // Radius of the spiral
+        cylinderHeight: 2000,     // Total descent distance
+        obstacleCount: 50,        // 25% density roughly
+        star3: 45,                // Fast descent for 3 stars
+        star2: 60,                // Medium time for 2 stars  
+        star1: 90,                // Slow and steady for 1 star
+        autoZeroTime: 999         // Disabled - constant spiral motion
     }
 };
-
