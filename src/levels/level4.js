@@ -15,14 +15,15 @@ export class WormholeSpiral {
         this.originalCameraRadius = 80;
     }
 
-    spawn(scene, levelData, CONFIG) {
+    spawn(scene, levelData, CONFIG, ship) {
         this.scene = scene;
         this.levelData = levelData;
         this.CONFIG = CONFIG;
         
         console.log('🌀 Level 4: Wormhole Spiral - Beginning cosmic journey...');
+        console.log('Ship position at spawn:', ship?.position);
         
-        // Start with approach phase
+        // Start with approach phase - ship stays in its current position
         this.createWormholeStructure();
         this.createBlueStarField();
         
@@ -243,6 +244,7 @@ export class WormholeSpiral {
             
             // Position ship at top of spiral
             ship.position.set(this.levelData.cylinderRadius, 0, 0);
+            ship.rotation.set(0, 0, 0); // Reset ship rotation
             
             console.log('🎢 Beginning spiral descent!');
             return { customControls: false, fadeToBlack: true }; // Brief fade transition
@@ -339,5 +341,4 @@ export class WormholeSpiral {
         this.obstacles = [];
         this.blueStars = [];
     }
-
 }
