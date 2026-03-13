@@ -1,4 +1,4 @@
-﻿// Star Runner 3D - Main Game Logic (Dynamic Version)
+﻿// Star Runner 3D - Main Game Logic (Dynamic Version) - v2.2.6
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG, LEVELS } from './game/config.js';
