@@ -1,5 +1,5 @@
 // Universal version file - works for both ES6 modules and service workers
-const VERSION = "2.3.1";
+const VERSION = "2.3.2";
 
 // For service workers (must be first, before any exports)
 if (typeof self !== 'undefined' && typeof importScripts !== 'undefined') {
@@ -9,3 +9,4 @@ if (typeof self !== 'undefined' && typeof importScripts !== 'undefined') {
 // ES6 export for modules (must be at top level)
 
 export { VERSION };
+
