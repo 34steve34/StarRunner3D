@@ -78,7 +78,7 @@ export class WormholeSpiral {
         this.wormholeStructure.add(this.plane);
         
         // Large central ring - the drain
-        const ringGeometry = new THREE.TorusGeometry(200, 30, 16, 32);
+        const ringGeometry = new THREE.TorusGeometry(200, 30, 16, 100); // Increased segments from 32 to 100 for full 360°
         const ringMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x0088ff,
             transparent: true, 
@@ -226,6 +226,7 @@ export class WormholeSpiral {
         this.entrappedTime += dt;
         console.log('Entrapment time:', this.entrappedTime.toFixed(1), '/ 15 seconds');
         
+        // OVERRIDE: Force ship movement regardless of player input
         // Pull ship toward center of plane
         const planeCenter = new THREE.Vector3(0, 0, -2000);
         const direction = new THREE.Vector3().subVectors(planeCenter, ship.position).normalize();
@@ -276,7 +277,7 @@ export class WormholeSpiral {
             const startAngle = 0;
             const startX = this.levelData.cylinderRadius * Math.cos(startAngle);
             const startZ = this.levelData.cylinderRadius * Math.sin(startAngle);
-            const startY = 0; // Top of spiral
+            const startY = 5; // Just above spiral surface (ship is ~10 units tall, so 5 puts belly on surface)
             
             ship.position.set(startX, startY, startZ);
             
@@ -284,13 +285,13 @@ export class WormholeSpiral {
             ship.rotation.order = 'YXZ';
             ship.rotation.y = startAngle + Math.PI / 2; // Face along tangent direction
             ship.rotation.x = 0; // Belly flat - NO rotateX!
-            ship.rotation.z = 0;
+            // Keep existing roll (z rotation) from before transition
             
             console.log('🎢 Ship on spiral at:', ship.position);
             return { customControls: false, fadeToBlack: true };
         }
         
-        return { customControls: true };
+        return { customControls: true, disableThrust: true }; // Disable thrust during star-fall
     }
 
     createSpiralRibbon() {
