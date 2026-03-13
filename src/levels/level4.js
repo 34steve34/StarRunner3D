@@ -35,11 +35,23 @@ export class WormholeSpiral {
             console.log('Ship position at spawn:', ship.position);
             console.log('Ship visible:', ship.visible);
             
+            // Position ship for Level 4 approach phase
+            ship.position.set(0, 0, -100); // Start position
+            ship.visible = true; // Ensure ship is visible
+            ship.rotation.set(0, 0, 0); // Reset rotation
+            
+            // Store original camera radius for later use
+            this.originalCameraRadius = CONFIG.CAMERA_RADIUS || 80;
+            
             // Start with approach phase - ship stays in its current position
             this.createWormholeStructure();
             this.createBlueStarField();
             
             console.log('Level 4 spawn completed successfully');
+            console.log('Ship final position:', ship.position);
+            console.log('Ship final visibility:', ship.visible);
+            console.log('Wormhole structure created:', !!this.wormholeStructure);
+            console.log('Blue stars created:', this.blueStars.length);
             
             return {
                 phase: this.phase,
@@ -60,7 +72,7 @@ export class WormholeSpiral {
         // Create the distant blue infinity pool structure
         this.wormholeStructure = new THREE.Group();
         
-        // Central ring (the drain)
+        // Central ring (the drain) - moved much closer
         const ringGeometry = new THREE.TorusGeometry(200, 20, 8, 32);
         const ringMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x0088ff, 
@@ -68,10 +80,10 @@ export class WormholeSpiral {
             opacity: 0.8 
         });
         const centralRing = new THREE.Mesh(ringGeometry, ringMaterial);
-        centralRing.position.set(0, 0, -3000); // Far away initially
+        centralRing.position.set(0, 0, -800); // Much closer - was -3000
         this.wormholeStructure.add(centralRing);
         
-        // Infinity pool plane
+        // Infinity pool  plane
         const planeGeometry = new THREE.PlaneGeometry(1000, 1000, 32, 32);
         const planeMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x001144, 
@@ -80,7 +92,7 @@ export class WormholeSpiral {
             side: THREE.DoubleSide
         });
         const poolPlane = new THREE.Mesh(planeGeometry, planeMaterial);
-        poolPlane.position.set(0, 0, -3000);
+        poolPlane.position.set(0, 0, -800); // Much closer - was -3000
         poolPlane.rotation.x = -Math.PI / 2;
         this.wormholeStructure.add(poolPlane);
         
@@ -102,7 +114,7 @@ export class WormholeSpiral {
             star.position.set(
                 Math.cos(angle) * distance,
                 (Math.random() - 0.5) * 200,
-                -3000 + (Math.random() - 0.5) * 500
+                -800 + (Math.random() - 0.5) * 500 // Centered around closer wormhole
             );
             
             star.userData = { 
@@ -200,6 +212,7 @@ export class WormholeSpiral {
     }
 
     update(ship, camera, dt) {
+        console.log('Level 4 update called, phase:', this.phase);
         if (this.phase === 'approach') {
             return this.updateApproach(ship, camera, dt);
         } else if (this.phase === 'entrapment') {
@@ -229,9 +242,9 @@ export class WormholeSpiral {
             );
         });
         
-        // Check if ship is close enough to get trapped
-        const distanceToWormhole = ship.position.distanceTo(new THREE.Vector3(0, 0, -3000));
-        if (distanceToWormhole < 800) {
+        // Check if ship is close enough to get trapped (updated for closer wormhole)
+        const distanceToWormhole = ship.position.distanceTo(new THREE.Vector3(0, 0, -800));
+        if (distanceToWormhole < 400) { // Reduced from 800 since wormhole is closer
             this.phase = 'entrapment';
             this.entrappedTime = 0;
             console.log('🌀 Ship caught in wormhole gravity!');
@@ -244,8 +257,8 @@ export class WormholeSpiral {
     updateEntrapment(ship, camera, dt) {
         this.entrappedTime += dt;
         
-        // Pull ship toward wormhole center
-        const wormholeCenter = new THREE.Vector3(0, 0, -3000);
+        // Pull ship toward wormhole center (updated position)
+        const wormholeCenter = new THREE.Vector3(0, 0, -800);
         const direction = new THREE.Vector3().subVectors(wormholeCenter, ship.position).normalize();
         ship.position.add(direction.multiplyScalar(dt * 200));
         
