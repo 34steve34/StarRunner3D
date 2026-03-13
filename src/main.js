@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG, LEVELS } from './game/config.js';
 import { VERSION } from '../version.js';
+import { WormholeSpiral } from './levels/level4.js';
 
         
 
@@ -52,6 +53,9 @@ import { VERSION } from '../version.js';
         let pullInProgress = 0;
         let lastGlobalImpulseTime = 0; // Track when ANY orb last got an impulse
         let nextOrbIndex = 0; // Track which orb gets the next impulse
+        
+        // === LEVEL 4 WORMHOLE SPIRAL ===
+        let level4Instance = null;
         
         let audioCtx; // Web Audio API Context
         let timerInterval = null;
@@ -301,6 +305,17 @@ import { VERSION } from '../version.js';
                     checkSphereRamming();
                     checkBubbleWallCollision();
                     updateOrbs();
+                } else if (levelData.courseType === 'wormhole-spiral') {
+                    // Level 4 handles its own updates
+                    if (level4Instance) {
+                        const result = level4Instance.update(ship, camera, dt);
+                        if (result.customControls) {
+                            // Disable normal ship controls
+                        }
+                        if (result.levelComplete) {
+                            showResults();
+                        }
+                    }
                 } else {
                     checkGateCollision();
                 }
@@ -823,6 +838,37 @@ import { VERSION } from '../version.js';
             updateHUD();
             updateStarsVisibility();
         }
+        
+        function spawnWormholeSpiralLevel() {
+            const levelData = LEVELS[currentLevel];
+            
+            // Clear previous level
+            gates.forEach(g => scene.remove(g));
+            gates.length = 0;
+            targets.forEach(t => scene.remove(t));
+            targets.length = 0;
+            debris.forEach(d => scene.remove(d));
+            debris.length = 0;
+            
+            // Clean up other level types
+            tunnelPanels.forEach(p => scene.remove(p.group));
+            tunnelPanels.length = 0;
+            largeSpheres.forEach(s => scene.remove(s.mesh));
+            largeSpheres.length = 0;
+            orbs.forEach(o => scene.remove(o.mesh));
+            orbs.length = 0;
+            
+            triggerBloom();
+            
+            // Create Level 4 instance
+            level4Instance = new WormholeSpiral();
+            level4Instance.spawn(scene, levelData, CONFIG);
+            
+            console.log('🌀 Level 4: Wormhole Spiral initialized!');
+            
+            updateHUD();
+            updateStarsVisibility();
+        }
 
         function updateSphereShaders() {
             largeSpheres.forEach(sphere => {
@@ -1307,6 +1353,11 @@ import { VERSION } from '../version.js';
             
             if (levelData.courseType === 'spheres') {
                 spawnSpheresLevel();
+                return;
+            }
+            
+            if (levelData.courseType === 'wormhole-spiral') {
+                spawnWormholeSpiralLevel();
                 return;
             }
             
@@ -2162,6 +2213,10 @@ import { VERSION } from '../version.js';
                 } else {
                     document.getElementById('objectiveInfo').innerHTML = `Spheres: ${spheresCleared}/${spheresTotal}`;
                 }
+            } else if (levelData.courseType === 'wormhole-spiral') {
+                const progress = level4Instance ? Math.floor(level4Instance.spiralProgress * 100) : 0;
+                const phase = level4Instance ? level4Instance.phase : 'approach';
+                document.getElementById('objectiveInfo').innerHTML = `Phase: ${phase} | Descent: ${progress}%`;
             } else {
                 document.getElementById('gatesComplete').textContent = gatesComplete;
                 document.getElementById('gatesTotal').textContent = levelData.gates;
