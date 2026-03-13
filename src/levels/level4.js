@@ -339,4 +339,5 @@ export class WormholeSpiral {
         this.obstacles = [];
         this.blueStars = [];
     }
+
 }
