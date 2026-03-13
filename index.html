@@ -119,9 +119,15 @@
             try {
                 console.log('Updating instructions for level:', level);
                 
+                // Debug: Check what's in the DOM right now
+                const levelInstructions = document.getElementById('levelInstructions');
+                console.log('levelInstructions container:', levelInstructions);
+                console.log('levelInstructions innerHTML length:', levelInstructions?.innerHTML?.length);
+                
                 // Hide all instructions
                 for (let i = 1; i <= 4; i++) {
                     const instructions = document.getElementById(`level${i}Instructions`);
+                    console.log(`Level ${i} instructions:`, instructions ? 'Found' : 'Missing', instructions);
                     if (instructions) {
                         instructions.style.display = 'none';
                     }
@@ -134,6 +140,9 @@
                     console.log(`Showing level ${level} instructions`);
                 } else {
                     console.error(`Instructions for level ${level} not found`);
+                    // Debug: Let's see what IDs actually exist
+                    const allDivs = document.querySelectorAll('div[id*="Instructions"]');
+                    console.log('All instruction divs found:', Array.from(allDivs).map(d => d.id));
                 }
             } catch (error) {
                 console.error('Error updating instructions:', error);
