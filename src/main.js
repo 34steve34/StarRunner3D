@@ -61,6 +61,11 @@ import { WormholeSpiral } from './levels/level4.js';
         let timerInterval = null;
 
         function init() {
+            // Debug: Check if LEVELS is imported correctly
+            console.log('LEVELS object:', LEVELS);
+            console.log('Current level:', currentLevel);
+            console.log('Level data:', LEVELS[currentLevel]);
+            
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(CONFIG.BASE_FOV, window.innerWidth / window.innerHeight, 1, 30000);
             camera.position.set(0, 10, 40);
@@ -296,6 +301,13 @@ import { WormholeSpiral } from './levels/level4.js';
                 
                 // Check collision based on level type
                 const levelData = LEVELS[currentLevel];
+                if (!levelData) {
+                    console.error(`Level data not found for level ${currentLevel}`);
+                    console.log('Available levels:', Object.keys(LEVELS));
+                    console.log('Current level:', currentLevel);
+                    return; // Skip this frame
+                }
+                
                 if (levelData.courseType === 'rectangular') {
                     checkRectangularGateCollision();
                     checkRectangularWallCollision();
@@ -2212,6 +2224,11 @@ import { WormholeSpiral } from './levels/level4.js';
 
         function updateHUD() { 
             const levelData = LEVELS[currentLevel];
+            if (!levelData) {
+                console.error(`Level data not found for level ${currentLevel} in updateHUD`);
+                return;
+            }
+            
             const gatesComplete = gates.filter(g => g.userData.passed).length;
             const targetsComplete = targets.filter(t => t.userData.hit).length;
             
