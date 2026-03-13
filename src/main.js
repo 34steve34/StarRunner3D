@@ -308,13 +308,22 @@ import { WormholeSpiral } from './levels/level4.js';
                 } else if (levelData.courseType === 'wormhole-spiral') {
                     // Level 4 handles its own updates
                     if (level4Instance) {
-                        const result = level4Instance.update(ship, camera, dt);
-                        if (result.customControls) {
-                            // Disable normal ship controls
+                        try {
+                            const result = level4Instance.update(ship, camera, dt);
+                            if (result.customControls) {
+                                // Disable normal ship controls
+                            }
+                            if (result.levelComplete) {
+                                showResults();
+                            }
+                        } catch (error) {
+                            console.error('Error in Level 4 update:', error);
+                            // Fall back to normal collision detection
+                            checkGateCollision();
                         }
-                        if (result.levelComplete) {
-                            showResults();
-                        }
+                    } else {
+                        console.warn('Level 4 instance not found, falling back to normal collision');
+                        checkGateCollision();
                     }
                 } else {
                     checkGateCollision();
@@ -861,10 +870,17 @@ import { WormholeSpiral } from './levels/level4.js';
             triggerBloom();
             
             // Create Level 4 instance
-            level4Instance = new WormholeSpiral();
-            level4Instance.spawn(scene, levelData, CONFIG, ship);
-            
-            console.log('🌀 Level 4: Wormhole Spiral initialized!');
+            try {
+                level4Instance = new WormholeSpiral();
+                level4Instance.spawn(scene, levelData, CONFIG, ship);
+                console.log('🌀 Level 4: Wormhole Spiral initialized!');
+            } catch (error) {
+                console.error('Failed to initialize Level 4:', error);
+                level4Instance = null;
+                // Fall back to spawning a basic level
+                spawnLevel();
+                return;
+            }
             
             updateHUD();
             updateStarsVisibility();
