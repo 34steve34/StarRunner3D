@@ -145,23 +145,32 @@
             try {
                 console.log('Setting up level button listeners');
                 
-                const levelButtons = document.querySelectorAll('.level-btn');
-                console.log('Found level buttons:', levelButtons.length);
-                
-                levelButtons.forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        try {
-                            const level = btn.getAttribute('data-level');
-                            console.log('Level button clicked:', level);
-                            updateInstructions(level);
-                        } catch (error) {
-                            console.error('Error in level button click:', error);
-                        }
+                // Add a small delay to ensure all elements are loaded
+                setTimeout(() => {
+                    const levelButtons = document.querySelectorAll('.level-btn');
+                    console.log('Found level buttons:', levelButtons.length);
+                    
+                    // Check if instruction elements exist
+                    for (let i = 1; i <= 4; i++) {
+                        const instructions = document.getElementById(`level${i}Instructions`);
+                        console.log(`Level ${i} instructions element:`, instructions ? 'Found' : 'Missing');
+                    }
+                    
+                    levelButtons.forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            try {
+                                const level = btn.getAttribute('data-level');
+                                console.log('Level button clicked:', level);
+                                updateInstructions(level);
+                            } catch (error) {
+                                console.error('Error in level button click:', error);
+                            }
+                        });
                     });
-                });
-                
-                // Show Level 1 instructions by default
-                updateInstructions(1);
+                    
+                    // Show Level 1 instructions by default
+                    updateInstructions(1);
+                }, 100); // 100ms delay
                 
             } catch (error) {
                 console.error('Error setting up level buttons:', error);
