@@ -863,6 +863,12 @@ import { WormholeSpiral } from './levels/level4.js';
         function spawnWormholeSpiralLevel() {
             const levelData = LEVELS[currentLevel];
             
+            // Validate ship exists before spawning level
+            if (!ship) {
+                console.error('Cannot spawn Level 4: ship not loaded yet');
+                return;
+            }
+            
             // Clear previous level
             gates.forEach(g => scene.remove(g));
             gates.length = 0;
@@ -879,18 +885,33 @@ import { WormholeSpiral } from './levels/level4.js';
             orbs.forEach(o => scene.remove(o.mesh));
             orbs.length = 0;
             
+            // Clean up previous level4 instance if it exists
+            if (level4Instance) {
+                level4Instance.cleanup(scene);
+                level4Instance = null;
+            }
+            
             triggerBloom();
             
             // Create Level 4 instance
             try {
                 level4Instance = new WormholeSpiral();
-                level4Instance.spawn(scene, levelData, CONFIG, ship);
+                const spawnResult = level4Instance.spawn(scene, levelData, CONFIG, ship);
+                
+                if (spawnResult.error) {
+                    console.error('Level 4 spawn returned error:', spawnResult.error);
+                    level4Instance = null;
+                    // Don't fall back - just show error and keep empty level
+                    console.warn('Level 4 failed to load. Please reload the page.');
+                    return;
+                }
+                
                 console.log('🌀 Level 4: Wormhole Spiral initialized!');
             } catch (error) {
                 console.error('Failed to initialize Level 4:', error);
                 level4Instance = null;
-                // Fall back to spawning a basic level
-                spawnLevel();
+                // Don't fall back - just show error and keep empty level
+                console.warn('Level 4 failed to load. Please reload the page.');
                 return;
             }
             
