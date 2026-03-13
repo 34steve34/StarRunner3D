@@ -862,7 +862,7 @@ import { WormholeSpiral } from './levels/level4.js';
             
             // Create Level 4 instance
             level4Instance = new WormholeSpiral();
-            level4Instance.spawn(scene, levelData, CONFIG);
+            level4Instance.spawn(scene, levelData, CONFIG, ship);
             
             console.log('🌀 Level 4: Wormhole Spiral initialized!');
             
