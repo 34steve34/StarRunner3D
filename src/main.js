@@ -2316,7 +2316,8 @@ import { WormholeSpiral } from './levels/level4.js';
                 btn.classList.add('active');
                 
                 // Update instructions based on level
-                updateLevelInstructions(level);
+                // DISABLED - Using new instruction system in HTML
+                // updateLevelInstructions(level);
             });
         });
         
