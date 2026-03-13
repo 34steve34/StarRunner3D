@@ -21,9 +21,19 @@ export class WormholeSpiral {
             this.levelData = levelData;
             this.CONFIG = CONFIG;
             
+            // Validate ship exists
+            if (!ship) {
+                console.error('Level 4 spawn failed: ship is null or undefined');
+                return {
+                    phase: 'approach',
+                    customControls: false,
+                    error: 'Ship not loaded'
+                };
+            }
+            
             console.log('🌀 Level 4: Wormhole Spiral - Beginning cosmic journey...');
-            console.log('Ship position at spawn:', ship?.position);
-            console.log('Ship visible:', ship?.visible);
+            console.log('Ship position at spawn:', ship.position);
+            console.log('Ship visible:', ship.visible);
             
             // Start with approach phase - ship stays in its current position
             this.createWormholeStructure();
@@ -40,7 +50,8 @@ export class WormholeSpiral {
             // Return safe defaults if spawn fails
             return {
                 phase: 'approach',
-                customControls: false
+                customControls: false,
+                error: error.message
             };
         }
     }
@@ -200,7 +211,7 @@ export class WormholeSpiral {
         }
     }
 
-    updateApproach(ship, camera, dt) {
+    updateApproach(ship, _camera, dt) {
         // Update flowing blue stars
         this.blueStars.forEach(star => {
             // Flow toward center
@@ -265,7 +276,7 @@ export class WormholeSpiral {
         return { customControls: true };
     }
 
-    updateSpiral(ship, camera, dt) {
+    updateSpiral(ship, _camera, _dt) {
         // Ship is constrained to spiral ribbon
         const { spiralTurns, cylinderRadius, cylinderHeight, ribbonWidth } = this.levelData;
         
@@ -306,7 +317,7 @@ export class WormholeSpiral {
         return { customControls: false };
     }
 
-    updateDeath(ship, camera, dt) {
+    updateDeath(ship, _camera, dt) {
         this.deathTime += dt;
         
         // Ship drifts away from ribbon
