@@ -69,7 +69,8 @@ export class WormholeSpiral {
             opacity: 1.0
         });
         const centralRing = new THREE.Mesh(ringGeometry, ringMaterial);
-        centralRing.position.set(0, 0, -2000); // Far away
+        centralRing.position.set(0, 0, -2000);
+        centralRing.rotation.x = Math.PI / 2; // Rotate to be horizontal like the plane
         this.wormholeStructure.add(centralRing);
         
         // Light to make it visible
@@ -77,7 +78,7 @@ export class WormholeSpiral {
         ringLight.position.set(0, 0, -2000);
         this.wormholeStructure.add(ringLight);
         
-        // Small distant plane
+        // Small distant plane - now coplanar with ring
         const planeGeometry = new THREE.PlaneGeometry(150, 150, 8, 8);
         const planeMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x003366, 
@@ -87,7 +88,7 @@ export class WormholeSpiral {
         });
         const poolPlane = new THREE.Mesh(planeGeometry, planeMaterial);
         poolPlane.position.set(0, 0, -2000);
-        poolPlane.rotation.x = -Math.PI / 2;
+        // Don't rotate - it's already horizontal
         this.wormholeStructure.add(poolPlane);
         
         console.log('Wormhole created at z=-2000');
@@ -120,7 +121,7 @@ export class WormholeSpiral {
                 angle: angle,
                 distance: distance,
                 originalZ: depth,
-                flowSpeed: 0.5 + Math.random() * 0.5,
+                flowSpeed: 2.0 + Math.random() * 2.0, // Much faster - was 0.5-1.0
                 targetZ: wormholeZ
             };
             
@@ -200,10 +201,11 @@ export class WormholeSpiral {
             // Create spiral
             this.createSpiralRibbon();
             
-            // Position ship ON the spiral ribbon
+            // Position ship ON the spiral ribbon with belly down
             ship.position.set(this.levelData.cylinderRadius, 0, 0);
             ship.rotation.set(0, 0, 0);
-            ship.rotateY(Math.PI);
+            ship.rotateY(Math.PI); // Face forward
+            ship.rotateX(Math.PI / 2); // Rotate so belly is on ribbon (nose points up)
             
             console.log('🎢 Ship on spiral at:', ship.position);
             return { customControls: false };
