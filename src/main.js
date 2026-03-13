@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG, LEVELS } from './game/config.js';
 import { VERSION } from '../version.js';
-import { WormholeSpiral } from './levels/level4_fixed.js';
+import { WormholeSpiral } from './levels/level4.js';
 
         
 
