@@ -15,7 +15,10 @@ const urlsToCache = [
   './libs/three.module.js',
   './libs/loaders/GLTFLoader.js',
   './libs/utils/BufferGeometryUtils.js',
-  './assets/ship.glb'
+  './assets/ship.glb',
+  './src/main.js',
+  './src/game/config.js',
+  './src/levels/level4.js'
 ];
 
 // Install event - cache all files
