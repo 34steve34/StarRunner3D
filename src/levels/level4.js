@@ -385,7 +385,7 @@ export class WormholeSpiral {
         const { ribbonWidth } = this.levelData;
         
         // Find closest point on curve to ship's current position
-        // This allows player to move the ship, and we track their progress
+        // This tracks player progress as they fly down the spiral
         let closestT = this.spiralProgress;
         let closestDist = Infinity;
         
@@ -412,25 +412,40 @@ export class WormholeSpiral {
         const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
         const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
         
-        // Gently pull ship toward the ribbon surface (not forced, just guided)
+        // GENTLE guidance: Only apply small corrective forces, don't override player control
+        // Pull ship toward ribbon if drifting away (very gentle)
         const targetPos = curvePoint.clone();
         targetPos.y += 5; // 5 units above ribbon
         
-        // Lerp ship position toward target (allows player control but prevents drifting too far)
-        ship.position.lerp(targetPos, 0.05);
+        const offsetFromRibbon = new THREE.Vector3().subVectors(targetPos, ship.position);
+        const pullStrength = 0.01; // Very weak pull - just keeps ship near ribbon
+        ship.position.add(offsetFromRibbon.multiplyScalar(pullStrength));
         
-        // Orient ship to face along the tangent (down the spiral)
+        // LOCK pitch and yaw to follow spiral, but preserve player's roll
+        // Extract current roll from ship's rotation
+        const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion);
+        const shipRight = new THREE.Vector3(1, 0, 0).applyQuaternion(ship.quaternion);
+        const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship.quaternion);
+        
+        // Calculate current roll angle (rotation around forward axis)
         const forward = tangent;
         const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
         const up = new THREE.Vector3().crossVectors(forward, right).normalize();
         
-        // Create target rotation from forward/up/right vectors
+        // Project ship's right vector onto the plane perpendicular to forward
+        const shipRightProjected = shipRight.clone().sub(forward.clone().multiplyScalar(shipRight.dot(forward))).normalize();
+        
+        // Calculate roll angle from the projected right vector
+        const rollAngle = Math.atan2(shipRightProjected.dot(up), shipRightProjected.dot(right));
+        
+        // Create rotation: spiral's forward direction + player's roll
         const matrix = new THREE.Matrix4();
         matrix.makeBasis(right, up, forward);
-        const targetQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
+        const baseQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
         
-        // Slerp ship rotation toward target (allows player roll control)
-        ship.quaternion.slerp(targetQuat, 0.1);
+        // Apply player's roll on top
+        const rollQuat = new THREE.Quaternion().setFromAxisAngle(forward, rollAngle);
+        ship.quaternion.copy(baseQuat).multiply(rollQuat);
         
         // Check if ship fell off ribbon edge (horizontal distance from curve)
         const horizontalDist = Math.sqrt(
