@@ -77,18 +77,19 @@ export class WormholeSpiral {
         this.plane.position.set(0, 0, -2000);
         this.wormholeStructure.add(this.plane);
         
-        // Large central ring - the drain
-        const ringGeometry = new THREE.TorusGeometry(200, 30, 16, 100); // Increased segments from 32 to 100 for full 360°
+        // Large central ring - the drain (using RingGeometry for guaranteed 360°)
+        const ringGeometry = new THREE.RingGeometry(170, 230, 64); // inner radius, outer radius, segments
         const ringMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x0088ff,
             transparent: true, 
             opacity: 1.0,
             emissive: 0x0088ff,
-            emissiveIntensity: 0.8
+            emissiveIntensity: 0.8,
+            side: THREE.DoubleSide
         });
         this.centralRing = new THREE.Mesh(ringGeometry, ringMaterial);
         this.centralRing.position.set(0, 0, -2000);
-        this.centralRing.rotation.x = Math.PI / 2; // Horizontal
+        // RingGeometry is already flat in XY plane, no rotation needed for horizontal
         this.wormholeStructure.add(this.centralRing);
         
         // Cylinder - the waterfall
