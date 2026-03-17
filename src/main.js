@@ -291,7 +291,11 @@ import { WormholeSpiral } from './levels/level4.js';
                 if (thrustValue > 0 && !thrustDisabled) {
                     const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion).normalize();
                     velocityVec.add(dir.multiplyScalar(CONFIG.ACCEL_FORCE * thrustValue));
-                    if (velocityVec.length() > CONFIG.MAX_VELOCITY) velocityVec.setLength(CONFIG.MAX_VELOCITY);
+                    
+                    // Use level-specific max velocity if available
+                    const maxVel = levelData.maxVelocity || CONFIG.MAX_VELOCITY;
+                    if (velocityVec.length() > maxVel * thrustValue) velocityVec.setLength(maxVel * thrustValue);
+                    
                     engineBeam.scale.set(1, (1.2 + Math.random() * 0.8) * thrustValue, 1); 
                     engineLight.intensity = 3000 * thrustValue;
                 } else {
@@ -301,7 +305,8 @@ import { WormholeSpiral } from './levels/level4.js';
                 }
                 ship.position.add(velocityVec);
                 
-                const targetFov = CONFIG.BASE_FOV + (velocityVec.length() / CONFIG.MAX_VELOCITY * CONFIG.MAX_FOV_BOOST);
+                const maxVelForFOV = levelData.maxVelocity || CONFIG.MAX_VELOCITY;
+                const targetFov = CONFIG.BASE_FOV + (velocityVec.length() / maxVelForFOV * CONFIG.MAX_FOV_BOOST);
                 camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, CONFIG.FOV_SMOOTHING);
                 camera.updateProjectionMatrix();
                 
