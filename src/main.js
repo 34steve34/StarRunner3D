@@ -283,6 +283,7 @@ import { WormholeSpiral } from './levels/level4.js';
                 
                 // Thrust with slider value
                 // Check if level 4 is disabling thrust (during star-fall)
+                const levelData = LEVELS[currentLevel];
                 let thrustDisabled = false;
                 if (level4Instance && level4Instance.phase === 'entrapment') {
                     thrustDisabled = true;
@@ -293,7 +294,7 @@ import { WormholeSpiral } from './levels/level4.js';
                     velocityVec.add(dir.multiplyScalar(CONFIG.ACCEL_FORCE * thrustValue));
                     
                     // Use level-specific max velocity if available
-                    const maxVel = levelData.maxVelocity || CONFIG.MAX_VELOCITY;
+                    const maxVel = (levelData && levelData.maxVelocity) || CONFIG.MAX_VELOCITY;
                     if (velocityVec.length() > maxVel * thrustValue) velocityVec.setLength(maxVel * thrustValue);
                     
                     engineBeam.scale.set(1, (1.2 + Math.random() * 0.8) * thrustValue, 1); 
@@ -305,17 +306,14 @@ import { WormholeSpiral } from './levels/level4.js';
                 }
                 ship.position.add(velocityVec);
                 
-                const maxVelForFOV = levelData.maxVelocity || CONFIG.MAX_VELOCITY;
+                const maxVelForFOV = (levelData && levelData.maxVelocity) || CONFIG.MAX_VELOCITY;
                 const targetFov = CONFIG.BASE_FOV + (velocityVec.length() / maxVelForFOV * CONFIG.MAX_FOV_BOOST);
                 camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, CONFIG.FOV_SMOOTHING);
                 camera.updateProjectionMatrix();
                 
                 // Check collision based on level type
-                const levelData = LEVELS[currentLevel];
                 if (!levelData) {
                     console.error(`Level data not found for level ${currentLevel}`);
-                    console.log('Available levels:', Object.keys(LEVELS));
-                    console.log('Current level:', currentLevel);
                     return; // Skip this frame
                 }
                 
