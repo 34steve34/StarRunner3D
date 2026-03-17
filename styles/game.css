@@ -8,9 +8,9 @@ body { margin: 0; background: #000; overflow: hidden; font-family: monospace; co
 
 #version { position: absolute; top: 10px; right: 10px; color: rgba(255, 120, 0, 0.7); font-size: 10px; z-index: 30; }
 
-#thrustSliderTrack { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 208px; background: rgba(255, 120, 0, 0.15); border: 2px solid rgba(255, 120, 0, 0.4); border-radius: 52px; z-index: 19; display: none; pointer-events: none; }
+#thrustSliderTrack { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 208px; background: rgba(255, 120, 0, 0.15); border: 2px solid rgba(255, 120, 0, 0.4); border-radius: 52px; z-index: 19; display: none; pointer-events: none; box-sizing: border-box; }
 
-#thrustBtn { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 104px; background: rgba(255, 120, 0, 0.3); color: white; border: 2px solid #ff7800; border-radius: 50%; cursor: pointer; font-size: 14px; z-index: 20; display: none; -webkit-user-select: none; user-select: none; touch-action: none; }
+#thrustBtn { position: absolute; bottom: 120px; right: 80px; width: 104px; height: 104px; background: rgba(255, 120, 0, 0.3); color: white; border: 2px solid #ff7800; border-radius: 50%; cursor: pointer; font-size: 14px; z-index: 20; display: none; -webkit-user-select: none; user-select: none; touch-action: none; box-sizing: border-box; }
 
 #thrustBtn.active { background: rgba(255, 120, 0, 0.7); }
 
