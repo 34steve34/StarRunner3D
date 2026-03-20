@@ -358,22 +358,24 @@ export class WormholeSpiral {
                 new THREE.MeshBasicMaterial({ color: 0x0088ff })
             );
 
-            // Keep first 15% of spiral clear so camera isn't blocked at start
-            const t = 0.15 + Math.random() * 0.85;
-            const angle = t * spiralTurns * Math.PI * 2;
-            const y = -t * cylinderHeight;
+            // Evenly spread across the spiral with jitter, skip first 15%
+            const tBase = 0.15 + (i / obstacleCount) * 0.85;
+            const t = tBase + (Math.random() - 0.5) * (0.85 / obstacleCount); // jitter within slot
+            const tClamped = Math.max(0.15, Math.min(0.99, t));
 
-            const ribbonOffset = (Math.random() - 0.5) * (ribbonWidth * 0.7);
+            // Get the ribbon frame at this point — same math as updateSpiral
+            const curvePoint = this.spiralCurve.getPointAt(tClamped);
+            const tangent = this.spiralCurve.getTangentAt(tClamped).normalize();
+            const worldUp = new THREE.Vector3(0, 1, 0);
+            const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+            const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
 
-            const centerX = Math.cos(angle) * cylinderRadius;
-            const centerZ = Math.sin(angle) * cylinderRadius;
+            // Random lateral offset across full ribbon width (80% to leave edges clear)
+            const lateralOffset = (Math.random() - 0.5) * ribbonWidth * 0.8;
 
-            const perpAngle = angle + Math.PI / 2;
-            obstacle.position.set(
-                centerX + Math.cos(perpAngle) * ribbonOffset,
-                y + 2,
-                centerZ + Math.sin(perpAngle) * ribbonOffset
-            );
+            obstacle.position.copy(curvePoint)
+                .addScaledVector(ribbonRight, lateralOffset)
+                .addScaledVector(ribbonUp, 2); // sit just above ribbon surface
 
             this.obstacles.push(obstacle);
             this.scene.add(obstacle);
