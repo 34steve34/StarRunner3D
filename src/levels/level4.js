@@ -161,13 +161,13 @@ export class WormholeSpiral {
         console.log('Created', starCount, 'blue stars on plane');
     }
 
-    update(ship, camera, dt) {
+    update(ship, camera, dt, rollInput = 0) {
         if (this.phase === 'approach') {
             return this.updateApproach(ship, camera, dt);
         } else if (this.phase === 'entrapment') {
             return this.updateEntrapment(ship, camera, dt);
         } else if (this.phase === 'spiral') {
-            return this.updateSpiral(ship, camera, dt);
+            return this.updateSpiral(ship, camera, dt, rollInput);
         } else if (this.phase === 'death') {
             return this.updateDeath(ship, camera, dt);
         }
@@ -381,94 +381,74 @@ export class WormholeSpiral {
         }
     }
 
-    updateSpiral(ship, _camera, _dt) {
+    updateSpiral(ship, _camera, _dt, rollInput) {
         const { ribbonWidth } = this.levelData;
-        
-        // Find closest point on curve to ship's current position
-        // This tracks player progress as they fly down the spiral
+
+        // --- 1. Track progress along the curve ---
         let closestT = this.spiralProgress;
         let closestDist = Infinity;
-        
-        // Search nearby curve positions (within ±0.1 of current progress)
         const searchStart = Math.max(0, this.spiralProgress - 0.05);
         const searchEnd = Math.min(1, this.spiralProgress + 0.15);
-        const searchSteps = 20;
-        
-        for (let i = 0; i <= searchSteps; i++) {
-            const t = searchStart + (searchEnd - searchStart) * (i / searchSteps);
-            const curvePoint = this.spiralCurve.getPointAt(t);
-            const dist = ship.position.distanceTo(curvePoint);
-            
-            if (dist < closestDist) {
-                closestDist = dist;
-                closestT = t;
-            }
+        for (let i = 0; i <= 20; i++) {
+            const t = searchStart + (searchEnd - searchStart) * (i / 20);
+            const cp = this.spiralCurve.getPointAt(t);
+            const d = ship.position.distanceTo(cp);
+            if (d < closestDist) { closestDist = d; closestT = t; }
         }
-        
-        // Update progress (only allow forward movement)
         this.spiralProgress = Math.max(this.spiralProgress, closestT);
-        
-        // Get curve data at current progress
+
+        // --- 2. Get ribbon frame at current progress ---
         const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
         const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
-        
-        // GENTLE guidance: Only apply small corrective forces, don't override player control
-        // Pull ship toward ribbon if drifting away (very gentle)
-        const targetPos = curvePoint.clone();
-        targetPos.y += 5; // 5 units above ribbon
-        
-        const offsetFromRibbon = new THREE.Vector3().subVectors(targetPos, ship.position);
-        const pullStrength = 0.01; // Very weak pull - just keeps ship near ribbon
-        ship.position.add(offsetFromRibbon.multiplyScalar(pullStrength));
-        
-        // LOCK pitch and yaw to follow spiral, but preserve player's roll
-        // Extract current roll from ship's rotation
-        const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion);
-        const shipRight = new THREE.Vector3(1, 0, 0).applyQuaternion(ship.quaternion);
-        const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship.quaternion);
-        
-        // Calculate current roll angle (rotation around forward axis)
-        const forward = tangent;
-        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
-        const up = new THREE.Vector3().crossVectors(forward, right).normalize();
-        
-        // Project ship's right vector onto the plane perpendicular to forward
-        const shipRightProjected = shipRight.clone().sub(forward.clone().multiplyScalar(shipRight.dot(forward))).normalize();
-        
-        // Calculate roll angle from the projected right vector
-        const rollAngle = Math.atan2(shipRightProjected.dot(up), shipRightProjected.dot(right));
-        
-        // Create rotation: spiral's forward direction + player's roll
-        const matrix = new THREE.Matrix4();
-        matrix.makeBasis(right, up, forward);
+
+        // Ribbon "right" = outward perpendicular in the horizontal plane of the spiral
+        // Cross world-up with tangent to get the across-ribbon direction
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+        const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
+
+        // --- 3. Roll input steers laterally across the ribbon ---
+        // rollInput is currentRotationVel.y (left/right tilt), range ~[-0.018, +0.018]
+        // Scale it to a meaningful lateral speed relative to ribbon width
+        const LATERAL_SPEED = ribbonWidth * 1.2; // units/sec at full tilt
+        const lateralMove = rollInput * LATERAL_SPEED;
+        ship.position.addScaledVector(ribbonRight, lateralMove);
+
+        // --- 4. Keep ship hovering above ribbon surface ---
+        // Project ship onto the ribbon plane and maintain fixed height above it
+        const toShip = new THREE.Vector3().subVectors(ship.position, curvePoint);
+        const heightAbove = toShip.dot(ribbonUp);
+        const targetHeight = 5;
+        // Gently correct vertical drift
+        ship.position.addScaledVector(ribbonUp, (targetHeight - heightAbove) * 0.15);
+
+        // --- 5. Lock ship orientation to spiral tangent (pitch locked, roll visual only) ---
+        // The ship always faces down the spiral. Roll is shown visually as a bank
+        // proportional to how hard the player is steering.
+        const bankAngle = -rollInput * 60; // visual bank in radians, feels responsive
+        const matrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent);
         const baseQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
-        
-        // Apply player's roll on top
-        const rollQuat = new THREE.Quaternion().setFromAxisAngle(forward, rollAngle);
-        ship.quaternion.copy(baseQuat).multiply(rollQuat);
-        
-        // Check if ship fell off ribbon edge (horizontal distance from curve)
-        const horizontalDist = Math.sqrt(
-            (ship.position.x - curvePoint.x) ** 2 + 
-            (ship.position.z - curvePoint.z) ** 2
-        );
-        
-        if (horizontalDist > ribbonWidth / 2) {
+        const bankQuat = new THREE.Quaternion().setFromAxisAngle(tangent, bankAngle);
+        ship.quaternion.copy(baseQuat).multiply(bankQuat);
+
+        // --- 6. Fall-off check: lateral distance from ribbon centerline ---
+        const lateralOffset = toShip.dot(ribbonRight);
+        if (Math.abs(lateralOffset) > ribbonWidth / 2) {
             this.phase = 'death';
             this.isDying = true;
             this.deathTime = 0;
             console.log('💀 Ship fell off the ribbon road!');
             return { customControls: true };
         }
-        
+
         this.checkObstacleCollisions(ship);
-        
+
         if (this.spiralProgress >= 0.95) {
             console.log('🏁 Spiral descent complete!');
             return { levelComplete: true };
         }
-        
-        return { customControls: false };
+
+        return { customControls: true };
     }
 
     updateDeath(ship, _camera, dt) {
@@ -480,10 +460,26 @@ export class WormholeSpiral {
         const fadeProgress = Math.min(1, this.deathTime / 3);
         
         if (this.deathTime >= 3) {
-            ship.position.set(this.levelData.cylinderRadius, 0, 0);
-            ship.rotation.set(0, 0, 0);
-            ship.rotateY(Math.PI);
-            ship.rotateX(Math.PI / 2);
+            // Reset to start of spiral using proper curve positioning
+            this.spiralProgress = 0.01; // Start just after beginning
+            
+            const shipPos = this.spiralCurve.getPointAt(this.spiralProgress);
+            const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
+            
+            // Position ship slightly above the ribbon surface
+            ship.position.copy(shipPos);
+            ship.position.y += 5; // Lift ship 5 units above ribbon
+            
+            // Orient ship to face along the tangent (down the spiral)
+            const forward = tangent;
+            const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+            const up = new THREE.Vector3().crossVectors(forward, right).normalize();
+            
+            // Create rotation matrix from forward/up/right vectors
+            const matrix = new THREE.Matrix4();
+            matrix.makeBasis(right, up, forward);
+            ship.quaternion.setFromRotationMatrix(matrix);
+            
             this.phase = 'spiral';
             this.isDying = false;
             this.deathTime = 0;
