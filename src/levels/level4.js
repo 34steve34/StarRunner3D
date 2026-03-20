@@ -161,13 +161,13 @@ export class WormholeSpiral {
         console.log('Created', starCount, 'blue stars on plane');
     }
 
-    update(ship, camera, dt, rollInput = 0) {
+    update(ship, camera, dt, tiltAngle = 0, thrustValue = 0) {
         if (this.phase === 'approach') {
             return this.updateApproach(ship, camera, dt);
         } else if (this.phase === 'entrapment') {
             return this.updateEntrapment(ship, camera, dt);
         } else if (this.phase === 'spiral') {
-            return this.updateSpiral(ship, camera, dt, rollInput);
+            return this.updateSpiral(ship, camera, dt, tiltAngle, thrustValue);
         } else if (this.phase === 'death') {
             return this.updateDeath(ship, camera, dt);
         }
@@ -381,8 +381,8 @@ export class WormholeSpiral {
         }
     }
 
-    updateSpiral(ship, _camera, _dt, rollInput) {
-        const { ribbonWidth } = this.levelData;
+    updateSpiral(ship, _camera, dt, tiltAngle, thrustValue) {
+        const { ribbonWidth, cylinderRadius } = this.levelData;
 
         // --- 1. Track progress along the curve ---
         let closestT = this.spiralProgress;
@@ -401,38 +401,45 @@ export class WormholeSpiral {
         const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
         const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
 
-        // Ribbon "right" = outward perpendicular in the horizontal plane of the spiral
-        // Cross world-up with tangent to get the across-ribbon direction
+        // ribbonRight = across the ribbon (radial direction on the cylinder)
+        // ribbonUp = normal to the ribbon surface
         const worldUp = new THREE.Vector3(0, 1, 0);
         const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
         const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
 
-        // --- 3. Roll input steers laterally across the ribbon ---
-        // rollInput is currentRotationVel.y (left/right tilt), range ~[-0.018, +0.018]
-        // Scale it to a meaningful lateral speed relative to ribbon width
-        const LATERAL_SPEED = ribbonWidth * 1.2; // units/sec at full tilt
-        const lateralMove = rollInput * LATERAL_SPEED;
-        ship.position.addScaledVector(ribbonRight, lateralMove);
+        // --- 3. Advance along spiral with thrust ---
+        // Move ship forward along the tangent based on thrust
+        const FORWARD_SPEED = 200; // units/sec at full thrust
+        ship.position.addScaledVector(tangent, thrustValue * FORWARD_SPEED * dt);
 
-        // --- 4. Keep ship hovering above ribbon surface ---
-        // Project ship onto the ribbon plane and maintain fixed height above it
+        // --- 4. Lateral steering from tilt ---
+        // tiltAngle is relativeTilt.y in degrees, range ~[-45, +45] in practice
+        // Normalize to [-1, +1] and apply lateral speed
+        const DEADZONE = 2.0; // degrees
+        const MAX_TILT = 35.0; // degrees for full lateral speed
+        const LATERAL_SPEED = 180; // units/sec at full tilt (1.5x ribbon width/sec)
+        let normalizedTilt = 0;
+        if (Math.abs(tiltAngle) > DEADZONE) {
+            normalizedTilt = Math.sign(tiltAngle) * Math.min(Math.abs(tiltAngle) / MAX_TILT, 1.0);
+        }
+        ship.position.addScaledVector(ribbonRight, normalizedTilt * LATERAL_SPEED * dt);
+
+        // --- 5. Snap ship to ribbon surface height ---
+        // Recompute toShip after position updates
         const toShip = new THREE.Vector3().subVectors(ship.position, curvePoint);
         const heightAbove = toShip.dot(ribbonUp);
-        const targetHeight = 5;
-        // Gently correct vertical drift
-        ship.position.addScaledVector(ribbonUp, (targetHeight - heightAbove) * 0.15);
+        const TARGET_HEIGHT = 5;
+        ship.position.addScaledVector(ribbonUp, (TARGET_HEIGHT - heightAbove) * 0.3);
 
-        // --- 5. Lock ship orientation to spiral tangent (pitch locked, roll visual only) ---
-        // The ship always faces down the spiral. Roll is shown visually as a bank
-        // proportional to how hard the player is steering.
-        const bankAngle = -rollInput * 60; // visual bank in radians, feels responsive
+        // --- 6. Lock ship orientation: always faces down tangent, banks on tilt ---
+        const bankAngle = -normalizedTilt * 0.5; // max ~30 degree visual bank
         const matrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent);
         const baseQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
         const bankQuat = new THREE.Quaternion().setFromAxisAngle(tangent, bankAngle);
         ship.quaternion.copy(baseQuat).multiply(bankQuat);
 
-        // --- 6. Fall-off check: lateral distance from ribbon centerline ---
-        const lateralOffset = toShip.dot(ribbonRight);
+        // --- 7. Fall-off check ---
+        const lateralOffset = new THREE.Vector3().subVectors(ship.position, curvePoint).dot(ribbonRight);
         if (Math.abs(lateralOffset) > ribbonWidth / 2) {
             this.phase = 'death';
             this.isDying = true;
