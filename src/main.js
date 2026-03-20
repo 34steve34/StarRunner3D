@@ -337,7 +337,14 @@ import { WormholeSpiral } from './levels/level4.js';
                     // Level 4 handles its own updates
                     if (level4Instance) {
                         try {
-                            const result = level4Instance.update(ship, camera, dt, currentRotationVel.y);
+                            // During spiral phase, kill free-flight velocity so level4
+                            // has full control of ship position.
+                            if (level4Instance.phase === 'spiral' || level4Instance.phase === 'death') {
+                                velocityVec.set(0, 0, 0);
+                            }
+                            // Pass raw tilt angle (degrees) and dt so level4 can do
+                            // frame-rate-independent lateral steering.
+                            const result = level4Instance.update(ship, camera, dt, relativeTilt.y, thrustValue);
                             if (result.levelComplete) {
                                 gameActive = false;
                                 if (timerInterval) clearInterval(timerInterval);
