@@ -377,24 +377,24 @@ import { WormholeSpiral } from './levels/level4.js';
                 }
                 
                 // Auto-align camera behind ship when not thrusting
-                if (thrustValue > 0) {
-                    // Reset timer when thrusting
+                const isL4Spiral = level4Instance && level4Instance.phase === 'spiral';
+                if (thrustValue > 0 && !isL4Spiral) {
                     cameraAlignTimer = 0;
                 } else {
-                    // Increment timer when not thrusting
                     cameraAlignTimer += dt;
-                    
-                    // After 0.5 seconds of no thrust, start aligning
-                    if (cameraAlignTimer > 0.5) {
-                        // Calculate ideal position directly behind ship, elevated slightly above
+                    if (cameraAlignTimer > 0.5 || isL4Spiral) {
                         const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion);
                         const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship.quaternion);
+
+                        // Level 4 spiral: elevated camera so pilot can see ahead down the ribbon
+                        const camBack = isL4Spiral ? CONFIG.CAMERA_RADIUS * 1.5 : CONFIG.CAMERA_RADIUS;
+                        const camUp   = isL4Spiral ? 55 : 11;
+
                         const idealCameraPos = ship.position.clone()
-                            .sub(shipForward.multiplyScalar(CONFIG.CAMERA_RADIUS))
-                            .add(shipUp.multiplyScalar(11)); // Elevate 11 units above ship
-                        
-                        // Slowly lerp camera toward ideal position (takes ~4 seconds to complete)
-                        const alignSpeed = 0.015; // Slow lerp for smooth 4-second alignment
+                            .sub(shipForward.multiplyScalar(camBack))
+                            .add(shipUp.multiplyScalar(camUp));
+
+                        const alignSpeed = isL4Spiral ? 0.05 : 0.015;
                         camera.position.lerp(idealCameraPos, alignSpeed);
                     }
                 }
