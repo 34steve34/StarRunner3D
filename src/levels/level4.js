@@ -454,8 +454,12 @@ export class WormholeSpiral {
     updateDeath(ship, _camera, dt) {
         this.deathTime += dt;
 
-        const driftDirection = new THREE.Vector3().subVectors(ship.position, new THREE.Vector3(0, ship.position.y, 0)).normalize();
-        ship.position.add(driftDirection.multiplyScalar(dt * 50));
+        // Drift ship outward from spiral axis — guard against zero vector at center
+        const axisPoint = new THREE.Vector3(0, ship.position.y, 0);
+        const driftDir = new THREE.Vector3().subVectors(ship.position, axisPoint);
+        if (driftDir.lengthSq() > 0.001) {
+            ship.position.addScaledVector(driftDir.normalize(), dt * 50);
+        }
 
         const fadeProgress = Math.min(1, this.deathTime / 3);
 
@@ -464,13 +468,14 @@ export class WormholeSpiral {
             this.forwardVelocity = 0;
             this.lateralOffset = 0;
 
-            const shipPos = this.spiralCurve.getPointAt(this.spiralProgress);
+            const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
             const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
             const worldUp = new THREE.Vector3(0, 1, 0);
             const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
             const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
-            ship.position.copy(shipPos).addScaledVector(up, 1);
+            // Place ship exactly on ribbon surface at center, matching updateSpiral logic
+            ship.position.copy(curvePoint).addScaledVector(up, 1);
 
             const matrix = new THREE.Matrix4().makeBasis(right, up, tangent);
             ship.quaternion.setFromRotationMatrix(matrix);
