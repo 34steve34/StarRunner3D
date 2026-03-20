@@ -5,7 +5,7 @@ export class WormholeSpiral {
     constructor() {
         this.phase = 'approach'; // approach, entrapment, spiral, death
         this.spiralRibbon = null;
-        this.spiralCurve = null; // Store the curve for accurate positioning
+        this.spiralCurve = null;
         this.obstacles = [];
         this.blueStars = [];
         this.wormholeStructure = null;
@@ -14,6 +14,8 @@ export class WormholeSpiral {
         this.centralRing = null;
         this.entrappedTime = 0;
         this.spiralProgress = 0; // 0 to 1 along the curve
+        this.forwardVelocity = 0; // current forward speed with inertia
+        this.lateralOffset = 0;  // current lateral position on ribbon (units from center)
         this.isDying = false;
         this.deathTime = 0;
         this.fadeToBlack = 0;
@@ -273,27 +275,21 @@ export class WormholeSpiral {
             
             // Create spiral ribbon
             this.createSpiralRibbon();
-            
-            // Position ship ON the spiral ribbon using the curve
-            this.spiralProgress = 0.01; // Start just after beginning (avoid curve edge issues)
-            
+
+            this.spiralProgress = 0.01;
+            this.forwardVelocity = 0;
+            this.lateralOffset = 0;
+
             const shipPos = this.spiralCurve.getPointAt(this.spiralProgress);
             const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
-            
-            // Position ship slightly above the ribbon surface
-            ship.position.copy(shipPos);
-            ship.position.y += 5; // Lift ship 5 units above ribbon
-            
-            // Orient ship to face along the tangent (down the spiral)
-            // Calculate rotation from tangent vector
-            const forward = tangent;
-            const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
-            const up = new THREE.Vector3().crossVectors(forward, right).normalize();
-            
-            // Create rotation matrix from forward/up/right vectors
+            const worldUp = new THREE.Vector3(0, 1, 0);
+            const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+            const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
+
+            ship.position.copy(shipPos).addScaledVector(up, 1);
+
             const matrix = new THREE.Matrix4();
-            matrix.makeBasis(right, up, forward);
-            
+            matrix.makeBasis(right, up, tangent);
             ship.quaternion.setFromRotationMatrix(matrix);
             
             console.log('🎢 Ship on spiral at:', ship.position, 'tangent:', tangent);
@@ -353,94 +349,84 @@ export class WormholeSpiral {
 
     createObstacles() {
         const { obstacleCount, ribbonWidth, spiralTurns, cylinderRadius, cylinderHeight } = this.levelData;
-        
+
         for (let i = 0; i < obstacleCount; i++) {
             const obstacle = new THREE.Mesh(
                 new THREE.BoxGeometry(15, 15, 15),
                 new THREE.MeshBasicMaterial({ color: 0x0088ff })
             );
-            
-            const t = Math.random();
+
+            // Keep first 15% of spiral clear so camera isn't blocked at start
+            const t = 0.15 + Math.random() * 0.85;
             const angle = t * spiralTurns * Math.PI * 2;
             const y = -t * cylinderHeight;
-            
-            const ribbonOffset = (Math.random() - 0.5) * (ribbonWidth * 0.8);
-            
+
+            const ribbonOffset = (Math.random() - 0.5) * (ribbonWidth * 0.7);
+
             const centerX = Math.cos(angle) * cylinderRadius;
             const centerZ = Math.sin(angle) * cylinderRadius;
-            
+
             const perpAngle = angle + Math.PI / 2;
             obstacle.position.set(
                 centerX + Math.cos(perpAngle) * ribbonOffset,
-                y + 10,
+                y + 2,
                 centerZ + Math.sin(perpAngle) * ribbonOffset
             );
-            
+
             this.obstacles.push(obstacle);
             this.scene.add(obstacle);
         }
     }
 
     updateSpiral(ship, _camera, dt, tiltAngle, thrustValue) {
-        const { ribbonWidth, cylinderRadius } = this.levelData;
+        const { ribbonWidth } = this.levelData;
 
-        // --- 1. Track progress along the curve ---
-        let closestT = this.spiralProgress;
-        let closestDist = Infinity;
-        const searchStart = Math.max(0, this.spiralProgress - 0.05);
-        const searchEnd = Math.min(1, this.spiralProgress + 0.15);
-        for (let i = 0; i <= 20; i++) {
-            const t = searchStart + (searchEnd - searchStart) * (i / 20);
-            const cp = this.spiralCurve.getPointAt(t);
-            const d = ship.position.distanceTo(cp);
-            if (d < closestDist) { closestDist = d; closestT = t; }
-        }
-        this.spiralProgress = Math.max(this.spiralProgress, closestT);
+        // --- Forward speed with inertia ---
+        const BASE_SPEED  = 60;   // units/sec always moving
+        const BOOST_SPEED = 160;  // additional units/sec at full thrust
+        const targetSpeed = BASE_SPEED + thrustValue * BOOST_SPEED;
+        // Lerp toward target: accelerate quickly, decelerate with inertia
+        const lerpRate = thrustValue > 0 ? 4.0 : 1.5; // faster accel than decel
+        this.forwardVelocity += (targetSpeed - this.forwardVelocity) * Math.min(lerpRate * dt, 1.0);
 
-        // --- 2. Get ribbon frame at current progress ---
+        // --- Advance progress along curve ---
+        // Convert forward velocity to curve parameter advance
+        const curveLength = this.spiralCurve.getLength();
+        this.spiralProgress = Math.min(1, this.spiralProgress + (this.forwardVelocity * dt) / curveLength);
+
+        // --- Ribbon frame at current progress ---
         const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
         const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
-
-        // ribbonRight = across the ribbon (radial direction on the cylinder)
-        // ribbonUp = normal to the ribbon surface
         const worldUp = new THREE.Vector3(0, 1, 0);
         const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
         const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
 
-        // --- 3. Advance along spiral with thrust ---
-        // Move ship forward along the tangent based on thrust
-        const FORWARD_SPEED = 200; // units/sec at full thrust
-        ship.position.addScaledVector(tangent, thrustValue * FORWARD_SPEED * dt);
-
-        // --- 4. Lateral steering from tilt ---
-        // tiltAngle is relativeTilt.y in degrees, range ~[-45, +45] in practice
-        // Normalize to [-1, +1] and apply lateral speed
-        const DEADZONE = 2.0; // degrees
-        const MAX_TILT = 35.0; // degrees for full lateral speed
-        const LATERAL_SPEED = 180; // units/sec at full tilt (1.5x ribbon width/sec)
+        // --- Lateral steering from tilt (no auto-centering) ---
+        const DEADZONE   = 2.0;  // degrees
+        const MAX_TILT   = 35.0; // degrees = full lateral speed
+        const LATERAL_SPEED = 180; // units/sec at full tilt
         let normalizedTilt = 0;
         if (Math.abs(tiltAngle) > DEADZONE) {
             normalizedTilt = Math.sign(tiltAngle) * Math.min(Math.abs(tiltAngle) / MAX_TILT, 1.0);
         }
-        ship.position.addScaledVector(ribbonRight, normalizedTilt * LATERAL_SPEED * dt);
+        this.lateralOffset += normalizedTilt * LATERAL_SPEED * dt;
+        // Clamp so we can detect fall-off cleanly
+        this.lateralOffset = Math.max(-ribbonWidth / 2, Math.min(ribbonWidth / 2, this.lateralOffset));
 
-        // --- 5. Snap ship to ribbon surface height ---
-        // Recompute toShip after position updates
-        const toShip = new THREE.Vector3().subVectors(ship.position, curvePoint);
-        const heightAbove = toShip.dot(ribbonUp);
-        const TARGET_HEIGHT = 5;
-        ship.position.addScaledVector(ribbonUp, (TARGET_HEIGHT - heightAbove) * 0.3);
+        // --- Place ship on ribbon surface ---
+        ship.position.copy(curvePoint)
+            .addScaledVector(ribbonRight, this.lateralOffset)
+            .addScaledVector(ribbonUp, 1); // 1 unit clearance so ship sits on surface
 
-        // --- 6. Lock ship orientation: always faces down tangent, banks on tilt ---
-        const bankAngle = -normalizedTilt * 0.5; // max ~30 degree visual bank
+        // --- Lock orientation: face down tangent, bank on tilt ---
+        const bankAngle = -normalizedTilt * 0.5; // max ~30° visual bank
         const matrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent);
         const baseQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
         const bankQuat = new THREE.Quaternion().setFromAxisAngle(tangent, bankAngle);
         ship.quaternion.copy(baseQuat).multiply(bankQuat);
 
-        // --- 7. Fall-off check ---
-        const lateralOffset = new THREE.Vector3().subVectors(ship.position, curvePoint).dot(ribbonRight);
-        if (Math.abs(lateralOffset) > ribbonWidth / 2) {
+        // --- Fall-off check ---
+        if (Math.abs(this.lateralOffset) >= ribbonWidth / 2) {
             this.phase = 'death';
             this.isDying = true;
             this.deathTime = 0;
@@ -448,7 +434,14 @@ export class WormholeSpiral {
             return { customControls: true };
         }
 
-        this.checkObstacleCollisions(ship);
+        // --- Obstacle collision → death ---
+        if (this.checkObstacleCollisions(ship)) {
+            this.phase = 'death';
+            this.isDying = true;
+            this.deathTime = 0;
+            console.log('� Hit obstacle - death!');
+            return { customControls: true };
+        }
 
         if (this.spiralProgress >= 0.95) {
             console.log('🏁 Spiral descent complete!');
@@ -460,52 +453,44 @@ export class WormholeSpiral {
 
     updateDeath(ship, _camera, dt) {
         this.deathTime += dt;
-        
+
         const driftDirection = new THREE.Vector3().subVectors(ship.position, new THREE.Vector3(0, ship.position.y, 0)).normalize();
         ship.position.add(driftDirection.multiplyScalar(dt * 50));
-        
+
         const fadeProgress = Math.min(1, this.deathTime / 3);
-        
+
         if (this.deathTime >= 3) {
-            // Reset to start of spiral using proper curve positioning
-            this.spiralProgress = 0.01; // Start just after beginning
-            
+            this.spiralProgress = 0.01;
+            this.forwardVelocity = 0;
+            this.lateralOffset = 0;
+
             const shipPos = this.spiralCurve.getPointAt(this.spiralProgress);
             const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
-            
-            // Position ship slightly above the ribbon surface
-            ship.position.copy(shipPos);
-            ship.position.y += 5; // Lift ship 5 units above ribbon
-            
-            // Orient ship to face along the tangent (down the spiral)
-            const forward = tangent;
-            const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
-            const up = new THREE.Vector3().crossVectors(forward, right).normalize();
-            
-            // Create rotation matrix from forward/up/right vectors
-            const matrix = new THREE.Matrix4();
-            matrix.makeBasis(right, up, forward);
+            const worldUp = new THREE.Vector3(0, 1, 0);
+            const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+            const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
+
+            ship.position.copy(shipPos).addScaledVector(up, 1);
+
+            const matrix = new THREE.Matrix4().makeBasis(right, up, tangent);
             ship.quaternion.setFromRotationMatrix(matrix);
-            
+
             this.phase = 'spiral';
             this.isDying = false;
             this.deathTime = 0;
             console.log('🔄 Respawning at top of spiral...');
         }
-        
-        return { 
-            customControls: true,
-            fadeToBlack: fadeProgress
-        };
+
+        return { customControls: true, fadeToBlack: fadeProgress };
     }
 
     checkObstacleCollisions(ship) {
-        this.obstacles.forEach(obstacle => {
-            const distance = ship.position.distanceTo(obstacle.position);
-            if (distance < 25) {
-                console.log('💥 Hit obstacle!');
+        for (const obstacle of this.obstacles) {
+            if (ship.position.distanceTo(obstacle.position) < 20) {
+                return true; // hit
             }
-        });
+        }
+        return false;
     }
 
     cleanup(scene) {
