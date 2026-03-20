@@ -16,6 +16,7 @@ export class WormholeSpiral {
         this.spiralProgress = 0; // 0 to 1 along the curve
         this.forwardVelocity = 0; // current forward speed with inertia
         this.lateralOffset = 0;  // current lateral position on ribbon (units from center)
+        this.respawnGrace = 0;   // frames to suppress lateral input after respawn
         this.isDying = false;
         this.deathTime = 0;
         this.fadeToBlack = 0;
@@ -279,6 +280,7 @@ export class WormholeSpiral {
             this.spiralProgress = 0.01;
             this.forwardVelocity = 0;
             this.lateralOffset = 0;
+            this.respawnGrace = 90;
 
             const shipPos = this.spiralCurve.getPointAt(this.spiralProgress);
             const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
@@ -406,26 +408,27 @@ export class WormholeSpiral {
         const MAX_TILT   = 35.0; // degrees = full lateral speed
         const LATERAL_SPEED = 180; // units/sec at full tilt
         let normalizedTilt = 0;
-        if (Math.abs(tiltAngle) > DEADZONE) {
-            normalizedTilt = Math.sign(tiltAngle) * Math.min(Math.abs(tiltAngle) / MAX_TILT, 1.0);
+        if (this.respawnGrace > 0) {
+            this.respawnGrace--;
+        } else if (Math.abs(tiltAngle) > DEADZONE) {
+            // Negate so tilt-right moves right on the ribbon
+            normalizedTilt = -Math.sign(tiltAngle) * Math.min(Math.abs(tiltAngle) / MAX_TILT, 1.0);
         }
         this.lateralOffset += normalizedTilt * LATERAL_SPEED * dt;
-        // Clamp so we can detect fall-off cleanly
-        this.lateralOffset = Math.max(-ribbonWidth / 2, Math.min(ribbonWidth / 2, this.lateralOffset));
 
         // --- Place ship on ribbon surface ---
         ship.position.copy(curvePoint)
             .addScaledVector(ribbonRight, this.lateralOffset)
-            .addScaledVector(ribbonUp, 1); // 1 unit clearance so ship sits on surface
+            .addScaledVector(ribbonUp, 1);
 
         // --- Lock orientation: face down tangent, bank on tilt ---
-        const bankAngle = -normalizedTilt * 0.5; // max ~30° visual bank
+        const bankAngle = normalizedTilt * 0.5; // bank into the turn
         const matrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent);
         const baseQuat = new THREE.Quaternion().setFromRotationMatrix(matrix);
         const bankQuat = new THREE.Quaternion().setFromAxisAngle(tangent, bankAngle);
         ship.quaternion.copy(baseQuat).multiply(bankQuat);
 
-        // --- Fall-off check ---
+        // --- Fall-off check (no clamp — let offset exceed edge to trigger death) ---
         if (Math.abs(this.lateralOffset) >= ribbonWidth / 2) {
             this.phase = 'death';
             this.isDying = true;
@@ -467,6 +470,7 @@ export class WormholeSpiral {
             this.spiralProgress = 0.01;
             this.forwardVelocity = 0;
             this.lateralOffset = 0;
+            this.respawnGrace = 90; // ~1.5 sec grace period — no lateral input
 
             const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
             const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
