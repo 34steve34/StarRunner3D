@@ -255,20 +255,27 @@ import { WormholeSpiral } from './levels/level4.js';
             
             if (ship && isInitialized && !isRespawning) {
                 applyKeyboardControls(); // Apply keyboard input continuously
-                
-                currentRotationVel.y = Math.max(-CONFIG.YAW_SENSITIVITY, Math.min(CONFIG.YAW_SENSITIVITY, currentRotationVel.y));
 
-                const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship.quaternion);
-                ship.rotateOnWorldAxis(shipUp, -currentRotationVel.y);
-                
-                const shipRight = new THREE.Vector3(1, 0, 0).applyQuaternion(ship.quaternion);
-                const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion);
-                const currentPitchAngle = Math.asin(Math.max(-1, Math.min(1, shipForward.y)));
-                const MAX_PITCH = Math.PI * 0.47;
-                const proposedPitch = currentPitchAngle - currentRotationVel.p;
-                
-                if (proposedPitch > -MAX_PITCH && proposedPitch < MAX_PITCH) {
-                    ship.rotateOnWorldAxis(shipRight, -currentRotationVel.p);
+                // Level 4 spiral phase: skip normal yaw/pitch rotation entirely.
+                // Roll input is passed to level4 to steer laterally across the ribbon.
+                const isLevel4Spiral = level4Instance &&
+                    (level4Instance.phase === 'spiral' || level4Instance.phase === 'death');
+
+                if (!isLevel4Spiral) {
+                    currentRotationVel.y = Math.max(-CONFIG.YAW_SENSITIVITY, Math.min(CONFIG.YAW_SENSITIVITY, currentRotationVel.y));
+
+                    const shipUp = new THREE.Vector3(0, 1, 0).applyQuaternion(ship.quaternion);
+                    ship.rotateOnWorldAxis(shipUp, -currentRotationVel.y);
+                    
+                    const shipRight = new THREE.Vector3(1, 0, 0).applyQuaternion(ship.quaternion);
+                    const shipForward = new THREE.Vector3(0, 0, 1).applyQuaternion(ship.quaternion);
+                    const currentPitchAngle = Math.asin(Math.max(-1, Math.min(1, shipForward.y)));
+                    const MAX_PITCH = Math.PI * 0.47;
+                    const proposedPitch = currentPitchAngle - currentRotationVel.p;
+                    
+                    if (proposedPitch > -MAX_PITCH && proposedPitch < MAX_PITCH) {
+                        ship.rotateOnWorldAxis(shipRight, -currentRotationVel.p);
+                    }
                 }
                 
                 const currentGunTipPos = new THREE.Vector3(0, 0, 15).applyQuaternion(ship.quaternion).add(ship.position);
@@ -330,16 +337,14 @@ import { WormholeSpiral } from './levels/level4.js';
                     // Level 4 handles its own updates
                     if (level4Instance) {
                         try {
-                            const result = level4Instance.update(ship, camera, dt);
-                            if (result.customControls) {
-                                // Disable normal ship controls
-                            }
+                            const result = level4Instance.update(ship, camera, dt, currentRotationVel.y);
                             if (result.levelComplete) {
-                                checkLevelComplete();
+                                gameActive = false;
+                                if (timerInterval) clearInterval(timerInterval);
+                                displayEndScreen();
                             }
                         } catch (error) {
                             console.error('Error in Level 4 update:', error);
-                            // Fall back to normal collision detection
                             checkGateCollision();
                         }
                     } else {
