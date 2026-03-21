@@ -504,21 +504,54 @@ export class WormholeSpiral {
         const { ribbonWidth } = this.levelData;
         const maxOffset = ribbonWidth / 2 - 5; // Stay 5 units away from edge
         
-        // Try center first
+        // First, check if center is clear (can fly straight through)
         if (!this.isNearObstacle(progress, 0)) {
             return 0;
         }
         
-        // Try alternating left/right positions
-        const testOffsets = [15, -15, 25, -25, maxOffset, -maxOffset];
-        for (const offset of testOffsets) {
-            if (Math.abs(offset) <= maxOffset && !this.isNearObstacle(progress, offset)) {
+        // Find the position furthest from any obstacle at this progress
+        let bestOffset = 0;
+        let bestDistance = 0;
+        
+        // Sample many positions across the ribbon width
+        const samples = 20;
+        for (let i = 0; i <= samples; i++) {
+            const offset = -maxOffset + (2 * maxOffset * i / samples);
+            const minObstacleDist = this.getMinObstacleDistance(progress, offset);
+            
+            if (minObstacleDist > bestDistance) {
+                bestDistance = minObstacleDist;
+                bestOffset = offset;
+            }
+            
+            // If we find a position with good clearance, use it
+            if (minObstacleDist > 30) {
                 return offset;
             }
         }
         
-        // If all else fails, pick a random safe offset
-        return (Math.random() - 0.5) * maxOffset * 1.5;
+        return bestOffset;
+    }
+
+    getMinObstacleDistance(progress, lateralOffset) {
+        const curvePoint = this.spiralCurve.getPointAt(progress);
+        const tangent = this.spiralCurve.getTangentAt(progress).normalize();
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+        const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
+        
+        const testPos = curvePoint.clone()
+            .addScaledVector(right, lateralOffset)
+            .addScaledVector(up, 1);
+        
+        let minDist = Infinity;
+        for (const obstacle of this.obstacles) {
+            const dist = testPos.distanceTo(obstacle.position);
+            if (dist < minDist) {
+                minDist = dist;
+            }
+        }
+        return minDist;
     }
 
     isNearObstacle(progress, lateralOffset) {
