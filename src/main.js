@@ -2290,7 +2290,7 @@ import { WormholeSpiral } from './levels/level4.js';
                     document.getElementById('objectiveInfo').innerHTML = `Spheres: ${spheresCleared}/${spheresTotal}`;
                 }
             } else if (levelData.courseType === 'wormhole-spiral') {
-                const progress = level4Instance ? Math.floor(level4Instance.spiralProgress * 100) : 0;
+                const progress = level4Instance ? Math.floor(level4Instance.spiralProgress * 100 / 0.95) : 0;
                 const phase = level4Instance ? level4Instance.phase : 'approach';
                 document.getElementById('objectiveInfo').innerHTML = `Phase: ${phase} | Descent: ${progress}%`;
             } else {
