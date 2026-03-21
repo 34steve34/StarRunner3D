@@ -330,12 +330,48 @@ export class WormholeSpiral {
             const point2 = spiralPoints[i + 1];
             
             const segmentGeometry = new THREE.PlaneGeometry(ribbonWidth, point1.distanceTo(point2));
-            const segmentMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0xff6600,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.9
-            });
+            
+            // Check if this segment is in the finish zone (90-95%)
+            const segmentProgress = i / segments;
+            let segmentMaterial;
+            
+            if (segmentProgress >= 0.90 && segmentProgress < 0.95) {
+                // Finish zone - white striped pattern
+                const stripeCount = 4;
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                
+                // Draw checkered pattern
+                const tileSize = 16;
+                for (let y = 0; y < 64; y += tileSize) {
+                    for (let x = 0; x < 64; x += tileSize) {
+                        ctx.fillStyle = ((x + y) / tileSize) % 2 === 0 ? '#ffffff' : '#cccccc';
+                        ctx.fillRect(x, y, tileSize, tileSize);
+                    }
+                }
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(1, 4);
+                
+                segmentMaterial = new THREE.MeshBasicMaterial({ 
+                    map: texture,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 1.0
+                });
+            } else {
+                // Normal orange ribbon
+                segmentMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0xff6600,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.9
+                });
+            }
             
             const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
             segment.position.copy(point1).add(point2).multiplyScalar(0.5);
@@ -347,6 +383,129 @@ export class WormholeSpiral {
         
         this.scene.add(this.spiralRibbon);
         this.createObstacles();
+        this.createFinishLine();
+    }
+
+    createFinishLine() {
+        // Create a blue ribbon/finish line at 95% progress
+        const finishProgress = 0.95;
+        const curvePoint = this.spiralCurve.getPointAt(finishProgress);
+        const tangent = this.spiralCurve.getTangentAt(finishProgress).normalize();
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+        const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
+        
+        // Create a banner across the finish
+        const bannerGeometry = new THREE.PlaneGeometry(200, 30);
+        const bannerMaterial = new THREE.MeshBasicMaterial({
+            color: 0x0088ff,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.8,
+            emissive: 0x0088ff,
+            emissiveIntensity: 0.5
+        });
+        
+        const banner = new THREE.Mesh(bannerGeometry, bannerMaterial);
+        banner.position.copy(curvePoint).addScaledVector(ribbonUp, 15);
+        banner.lookAt(curvePoint.clone().add(tangent));
+        banner.rotateX(Math.PI / 2);
+        
+        this.spiralRibbon.add(banner);
+        
+        // Add "FINISH" text using simple geometry
+        const finishGroup = new THREE.Group();
+        
+        // Create letters F I N I S H with simple boxes
+        const letterWidth = 15;
+        const letterHeight = 20;
+        const letterThickness = 3;
+        const letterSpacing = 5;
+        
+        const createLetter = (pattern, startX) => {
+            const letterGroup = new THREE.Group();
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            
+            pattern.forEach(([x, y, w, h]) => {
+                const box = new THREE.Mesh(
+                    new THREE.BoxGeometry(w, h, letterThickness),
+                    material
+                );
+                box.position.set(startX + x + w/2, y + h/2, 0);
+                letterGroup.add(box);
+            });
+            
+            return letterGroup;
+        };
+        
+        // F: vertical + top horizontal + middle horizontal
+        const letterF = createLetter([
+            [0, 0, letterThickness, letterHeight],  // vertical
+            [0, letterHeight - letterThickness, letterWidth * 0.7, letterThickness],  // top
+            [0, letterHeight / 2, letterWidth * 0.5, letterThickness]  // middle
+        ], 0);
+        
+        // I: vertical
+        const letterI = createLetter([
+            [letterWidth / 2 - letterThickness / 2, 0, letterThickness, letterHeight]
+        ], letterWidth + letterSpacing);
+        
+        // N: vertical left + diagonal + vertical right
+        const letterN = createLetter([
+            [0, 0, letterThickness, letterHeight],  // left
+            [letterWidth - letterThickness, 0, letterThickness, letterHeight]  // right
+        ], letterWidth * 2 + letterSpacing * 2);
+        
+        // I: vertical
+        const letterI2 = createLetter([
+            [letterWidth / 2 - letterThickness / 2, 0, letterThickness, letterHeight]
+        ], letterWidth * 3 + letterSpacing * 3);
+        
+        // S: curves made of boxes
+        const letterS = createLetter([
+            [0, letterHeight - letterThickness, letterWidth, letterThickness],  // top
+            [0, 0, letterThickness, letterHeight],  // left
+            [letterWidth - letterThickness, 0, letterThickness, letterHeight],  // right
+            [0, 0, letterWidth, letterThickness],  // bottom
+            [letterWidth - letterThickness, letterHeight / 2, letterThickness, letterThickness]  // middle right
+        ], letterWidth * 4 + letterSpacing * 4);
+        
+        // H: vertical left + horizontal + vertical right
+        const letterH = createLetter([
+            [0, 0, letterThickness, letterHeight],  // left
+            [0, letterHeight / 2 - letterThickness / 2, letterWidth, letterThickness],  // middle
+            [letterWidth - letterThickness, 0, letterThickness, letterHeight]  // right
+        ], letterWidth * 5 + letterSpacing * 5);
+        
+        finishGroup.add(letterF, letterI, letterN, letterI2, letterS, letterH);
+        
+        // Position the text above and across the finish line
+        finishGroup.position.copy(curvePoint)
+            .addScaledVector(ribbonUp, 35)
+            .addScaledVector(ribbonRight, -letterWidth * 3);
+        finishGroup.lookAt(curvePoint.clone().add(tangent));
+        
+        this.spiralRibbon.add(finishGroup);
+        
+        // Add glowing finish zone markers
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const marker = new THREE.Mesh(
+                new THREE.SphereGeometry(5, 8, 8),
+                new THREE.MeshBasicMaterial({
+                    color: 0x00ffff,
+                    emissive: 0x00ffff,
+                    emissiveIntensity: 0.8
+                })
+            );
+            
+            const markerPos = curvePoint.clone()
+                .addScaledVector(ribbonRight, Math.cos(angle) * 80)
+                .addScaledVector(ribbonUp, 5);
+            marker.position.copy(markerPos);
+            
+            this.spiralRibbon.add(marker);
+        }
     }
 
     createObstacles() {
