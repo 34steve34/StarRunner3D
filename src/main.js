@@ -413,6 +413,7 @@ import { WormholeSpiral } from './levels/level4.js';
             }
 
             handleBullets(); 
+            updateHUD();
             renderer.render(scene, camera);
         }
 
