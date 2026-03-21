@@ -469,10 +469,13 @@ export class WormholeSpiral {
         const fadeProgress = Math.min(1, this.deathTime / 3);
 
         if (this.deathTime >= 3) {
-            this.spiralProgress = 0.01;
+            // Set back 10% instead of restarting from beginning
+            this.spiralProgress = Math.max(0.01, this.spiralProgress - 0.10);
             this.forwardVelocity = 0;
-            this.lateralOffset = 0;
             this.respawnGrace = 90; // ~1.5 sec grace period — no lateral input
+
+            // Find a safe lateral position (away from obstacles)
+            this.lateralOffset = this.findSafeLateralPosition(this.spiralProgress);
 
             const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
             const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
@@ -480,8 +483,10 @@ export class WormholeSpiral {
             const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
             const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
-            // Place ship exactly on ribbon surface at center, matching updateSpiral logic
-            ship.position.copy(curvePoint).addScaledVector(up, 1);
+            // Place ship on ribbon surface at safe lateral position
+            ship.position.copy(curvePoint)
+                .addScaledVector(right, this.lateralOffset)
+                .addScaledVector(up, 1);
 
             const matrix = new THREE.Matrix4().makeBasis(right, up, tangent);
             ship.quaternion.setFromRotationMatrix(matrix);
@@ -489,10 +494,50 @@ export class WormholeSpiral {
             this.phase = 'spiral';
             this.isDying = false;
             this.deathTime = 0;
-            console.log('🔄 Respawning at top of spiral...');
+            console.log(`🔄 Respawning 10% back at progress ${(this.spiralProgress * 100).toFixed(1)}%...`);
         }
 
         return { customControls: true, fadeToBlack: fadeProgress };
+    }
+
+    findSafeLateralPosition(progress) {
+        const { ribbonWidth } = this.levelData;
+        const maxOffset = ribbonWidth / 2 - 5; // Stay 5 units away from edge
+        
+        // Try center first
+        if (!this.isNearObstacle(progress, 0)) {
+            return 0;
+        }
+        
+        // Try alternating left/right positions
+        const testOffsets = [15, -15, 25, -25, maxOffset, -maxOffset];
+        for (const offset of testOffsets) {
+            if (Math.abs(offset) <= maxOffset && !this.isNearObstacle(progress, offset)) {
+                return offset;
+            }
+        }
+        
+        // If all else fails, pick a random safe offset
+        return (Math.random() - 0.5) * maxOffset * 1.5;
+    }
+
+    isNearObstacle(progress, lateralOffset) {
+        const curvePoint = this.spiralCurve.getPointAt(progress);
+        const tangent = this.spiralCurve.getTangentAt(progress).normalize();
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+        const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
+        
+        const testPos = curvePoint.clone()
+            .addScaledVector(right, lateralOffset)
+            .addScaledVector(up, 1);
+        
+        for (const obstacle of this.obstacles) {
+            if (testPos.distanceTo(obstacle.position) < 25) {
+                return true; // Too close to obstacle
+            }
+        }
+        return false;
     }
 
     checkObstacleCollisions(ship) {
