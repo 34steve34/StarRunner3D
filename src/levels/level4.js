@@ -576,35 +576,92 @@ export class WormholeSpiral {
 
     createObstacles() {
         const { obstacleCount, ribbonWidth, spiralTurns, cylinderRadius, cylinderHeight } = this.levelData;
-
-        for (let i = 0; i < obstacleCount; i++) {
-            const obstacle = new THREE.Mesh(
-                new THREE.BoxGeometry(15, 15, 15),
-                new THREE.MeshBasicMaterial({ color: 0x0088ff })
-            );
-
-            // Evenly spread across the spiral with jitter, skip first 15%
-            const tBase = 0.15 + (i / obstacleCount) * 0.85;
-            const t = tBase + (Math.random() - 0.5) * (0.85 / obstacleCount); // jitter within slot
-            const tClamped = Math.max(0.15, Math.min(0.99, t));
-
-            // Get the ribbon frame at this point — same math as updateSpiral
-            const curvePoint = this.spiralCurve.getPointAt(tClamped);
-            const tangent = this.spiralCurve.getTangentAt(tClamped).normalize();
-            const worldUp = new THREE.Vector3(0, 1, 0);
-            const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
-            const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
-
-            // Random lateral offset across full ribbon width (80% to leave edges clear)
-            const lateralOffset = (Math.random() - 0.5) * ribbonWidth * 0.8;
-
-            obstacle.position.copy(curvePoint)
-                .addScaledVector(ribbonRight, lateralOffset)
-                .addScaledVector(ribbonUp, 2); // sit just above ribbon surface
-
-            this.obstacles.push(obstacle);
-            this.scene.add(obstacle);
+        
+        // Clear any existing obstacles
+        for (const obstacle of this.obstacles) {
+            this.scene.remove(obstacle);
         }
+        this.obstacles = [];
+        
+        // Use mathematical patterns to force steering instead of random placement
+        // This prevents smart pilots from just riding the edge
+        
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        
+        // Pattern 1: Sine wave obstacles that sweep across the ribbon
+        const sineWaveCount = Math.floor(obstacleCount * 0.4);
+        for (let i = 0; i < sineWaveCount; i++) {
+            const t = 0.15 + (i / sineWaveCount) * 0.80;
+            
+            // Sine wave that oscillates across the full ribbon width
+            const sineValue = Math.sin(t * spiralTurns * Math.PI * 2 * 3); // 3 full oscillations
+            const lateralOffset = sineValue * (ribbonWidth * 0.35);
+            
+            this.placeObstacleAt(t, lateralOffset);
+        }
+        
+        // Pattern 2: Alternating left/right obstacles (lane blockers)
+        const laneBlockerCount = Math.floor(obstacleCount * 0.3);
+        for (let i = 0; i < laneBlockerCount; i++) {
+            const t = 0.18 + (i / laneBlockerCount) * 0.75;
+            
+            // Alternate between left and right sides
+            const side = i % 2 === 0 ? -1 : 1;
+            const lateralOffset = side * (ribbonWidth * 0.30);
+            
+            this.placeObstacleAt(t, lateralOffset);
+        }
+        
+        // Pattern 3: Center obstacles that force you to the edges
+        const centerCount = Math.floor(obstacleCount * 0.15);
+        for (let i = 0; i < centerCount; i++) {
+            const t = 0.20 + (i / centerCount) * 0.70;
+            const lateralOffset = (Math.random() - 0.5) * (ribbonWidth * 0.2); // Near center
+            
+            this.placeObstacleAt(t, lateralOffset);
+        }
+        
+        // Pattern 4: Edge chasers - obstacles near edges that punish staying too far left/right
+        const edgeCount = Math.floor(obstacleCount * 0.15);
+        for (let i = 0; i < edgeCount; i++) {
+            const t = 0.22 + (i / edgeCount) * 0.68;
+            
+            // Randomly pick left or right edge
+            const edgeSide = Math.random() > 0.5 ? -1 : 1;
+            const lateralOffset = edgeSide * (ribbonWidth * 0.38);
+            
+            this.placeObstacleAt(t, lateralOffset);
+        }
+    }
+
+    placeObstacleAt(t, lateralOffset) {
+        const { ribbonWidth } = this.levelData;
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        
+        const curvePoint = this.spiralCurve.getPointAt(t);
+        const tangent = this.spiralCurve.getTangentAt(t).normalize();
+        const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+        const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
+        
+        // Clamp lateral offset to stay on ribbon
+        const maxOffset = ribbonWidth / 2 - 12;
+        const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, lateralOffset));
+        
+        const obstacle = new THREE.Mesh(
+            new THREE.BoxGeometry(18, 18, 18),
+            new THREE.MeshBasicMaterial({ 
+                color: 0x0088ff,
+                transparent: true,
+                opacity: 0.9
+            })
+        );
+        
+        obstacle.position.copy(curvePoint)
+            .addScaledVector(ribbonRight, clampedOffset)
+            .addScaledVector(ribbonUp, 2);
+        
+        this.obstacles.push(obstacle);
+        this.scene.add(obstacle);
     }
 
     updateSpiral(ship, _camera, dt, tiltAngle, thrustValue) {
