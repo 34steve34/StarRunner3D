@@ -46,10 +46,11 @@ export const LEVELS = {
         ribbonWidth: 120,         // Width of the road
         cylinderRadius: 300,      // Radius of the spiral
         cylinderHeight: 2000,     // Total descent distance
-        obstacleCount: 50,        // 25% density roughly
+        obstacleCount: 80,        // Higher density to force steering
         star3: 45,                // Fast descent for 3 stars
         star2: 60,                // Medium time for 2 stars  
         star1: 90,                // Slow and steady for 1 star
-        autoZeroTime: 999         // Disabled - constant spiral motion
+        autoZeroTime: 999,        // Disabled - constant spiral motion
+        maxVelocity: 0.8          // Slower max speed for better control on spiral
     }
 };
