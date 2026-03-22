@@ -632,6 +632,85 @@ export class WormholeSpiral {
             
             this.placeObstacleAt(t, lateralOffset);
         }
+        
+        // Validate that the ribbon is traversable - retry if impossible
+        let attempts = 0;
+        const maxAttempts = 5;
+        
+        while (!this.isRibbonTraversable() && attempts < maxAttempts) {
+            console.log(`⚠️ Ribbon not traversable, regenerating... (attempt ${attempts + 1})`);
+            attempts++;
+            
+            // Clear and recreate with slight variations
+            for (const obstacle of this.obstacles) {
+                this.scene.remove(obstacle);
+            }
+            this.obstacles = [];
+            
+            // Re-run patterns with slight phase shifts
+            for (let i = 0; i < sineWaveCount; i++) {
+                const t = 0.15 + (i / sineWaveCount) * 0.80;
+                const sineValue = Math.sin(t * spiralTurns * Math.PI * 2 * 3 + Math.random() * 0.5);
+                const lateralOffset = sineValue * (ribbonWidth * 0.35);
+                this.placeObstacleAt(t, lateralOffset);
+            }
+            
+            for (let i = 0; i < laneBlockerCount; i++) {
+                const t = 0.18 + (i / laneBlockerCount) * 0.75;
+                const side = i % 2 === 0 ? -1 : 1;
+                const lateralOffset = side * (ribbonWidth * 0.30);
+                this.placeObstacleAt(t, lateralOffset);
+            }
+            
+            for (let i = 0; i < centerCount; i++) {
+                const t = 0.20 + (i / centerCount) * 0.70;
+                const lateralOffset = (Math.random() - 0.5) * (ribbonWidth * 0.2);
+                this.placeObstacleAt(t, lateralOffset);
+            }
+            
+            for (let i = 0; i < edgeCount; i++) {
+                const t = 0.22 + (i / edgeCount) * 0.68;
+                const edgeSide = Math.random() > 0.5 ? -1 : 1;
+                const lateralOffset = edgeSide * (ribbonWidth * 0.38);
+                this.placeObstacleAt(t, lateralOffset);
+            }
+        }
+        
+        if (attempts >= maxAttempts) {
+            console.log('⚠️ Could not generate traversable ribbon after max attempts, using current layout');
+        } else {
+            console.log('✅ Valid ribbon generated');
+        }
+    }
+
+    isRibbonTraversable() {
+        // Check if there's a path through all obstacles
+        // Sample the ribbon at regular intervals and check if at least one lateral position is safe
+        const samples = 100;
+        const { ribbonWidth } = this.levelData;
+        const maxOffset = ribbonWidth / 2 - 20; // Stay 20 units away from edges and obstacles
+        
+        for (let i = 0; i < samples; i++) {
+            const t = i / samples;
+            
+            // Check if ANY position on the ribbon is safe at this progress
+            let anySafePosition = false;
+            const positionSamples = 11;
+            
+            for (let j = 0; j <= positionSamples; j++) {
+                const offset = -maxOffset + (2 * maxOffset * j / positionSamples);
+                if (!this.isNearObstacle(t, offset, 25)) {
+                    anySafePosition = true;
+                    break;
+                }
+            }
+            
+            if (!anySafePosition) {
+                return false; // Found an impassable section
+            }
+        }
+        
+        return true;
     }
 
     placeObstacleAt(t, lateralOffset) {
@@ -787,27 +866,33 @@ export class WormholeSpiral {
         const maxOffset = ribbonWidth / 2 - 5; // Stay 5 units away from edge
         
         // First, check if center is clear (can fly straight through)
-        if (!this.isNearObstacle(progress, 0)) {
+        if (!this.isNearObstacle(progress, 0) && !this.isNearObstacle(progress + 0.02, 0, 25)) {
             return 0;
         }
         
-        // Find the position furthest from any obstacle at this progress
+        // Find the position furthest from any obstacle, also checking ahead
         let bestOffset = 0;
-        let bestDistance = 0;
+        let bestScore = -1;
         
         // Sample many positions across the ribbon width
         const samples = 20;
         for (let i = 0; i <= samples; i++) {
             const offset = -maxOffset + (2 * maxOffset * i / samples);
-            const minObstacleDist = this.getMinObstacleDistance(progress, offset);
             
-            if (minObstacleDist > bestDistance) {
-                bestDistance = minObstacleDist;
+            // Check current position AND look ahead 2% progress
+            const currentDist = this.getMinObstacleDistance(progress, offset);
+            const aheadDist = this.getMinObstacleDistance(progress + 0.02, offset);
+            
+            // Score based on minimum of current and ahead (worst case)
+            const minDist = Math.min(currentDist, aheadDist);
+            
+            if (minDist > bestScore) {
+                bestScore = minDist;
                 bestOffset = offset;
             }
             
-            // If we find a position with good clearance, use it
-            if (minObstacleDist > 30) {
+            // If we find a position with good clearance both now and ahead, use it
+            if (minDist > 35) {
                 return offset;
             }
         }
@@ -836,7 +921,7 @@ export class WormholeSpiral {
         return minDist;
     }
 
-    isNearObstacle(progress, lateralOffset) {
+    isNearObstacle(progress, lateralOffset, threshold = 25) {
         const curvePoint = this.spiralCurve.getPointAt(progress);
         const tangent = this.spiralCurve.getTangentAt(progress).normalize();
         const worldUp = new THREE.Vector3(0, 1, 0);
@@ -848,7 +933,7 @@ export class WormholeSpiral {
             .addScaledVector(up, 1);
         
         for (const obstacle of this.obstacles) {
-            if (testPos.distanceTo(obstacle.position) < 25) {
+            if (testPos.distanceTo(obstacle.position) < threshold) {
                 return true; // Too close to obstacle
             }
         }
