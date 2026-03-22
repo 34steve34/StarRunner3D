@@ -323,16 +323,110 @@ export class WormholeSpiral {
         this.spiralCurve.curveType = 'catmullrom';
         this.spiralCurve.tension = 0.5;
         
-        // Create continuous ribbon using TubeGeometry with flat scale
-        const tubeGeometry = new THREE.TubeGeometry(this.spiralCurve, segments, ribbonWidth / 2, 1, false);
+        // Create continuous flat ribbon geometry
+        const ribbonGeometry = new THREE.BufferGeometry();
+        const vertices = [];
+        const uvs = [];
+        const indices = [];
         
-        // Create texture for finish zone
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const curvePoint = this.spiralCurve.getPointAt(t);
+            const tangent = this.spiralCurve.getTangentAt(t).normalize();
+            
+            // Calculate ribbon edge positions
+            const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+            
+            const leftEdge = curvePoint.clone().addScaledVector(right, -ribbonWidth / 2);
+            const rightEdge = curvePoint.clone().addScaledVector(right, ribbonWidth / 2);
+            
+            // Add vertices (left, then right)
+            vertices.push(leftEdge.x, leftEdge.y, leftEdge.z);
+            vertices.push(rightEdge.x, rightEdge.y, rightEdge.z);
+            
+            // UV coordinates
+            uvs.push(t, 0);
+            uvs.push(t, 1);
+            
+            // Create triangles
+            if (i < segments) {
+                const base = i * 2;
+                // First triangle
+                indices.push(base, base + 1, base + 2);
+                // Second triangle
+                indices.push(base + 1, base + 3, base + 2);
+            }
+        }
+        
+        ribbonGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        ribbonGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        ribbonGeometry.setIndex(indices);
+        ribbonGeometry.computeVertexNormals();
+        
+        // Create main orange material
+        const mainMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xff6600,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        this.spiralRibbon = new THREE.Mesh(ribbonGeometry, mainMaterial);
+        this.scene.add(this.spiralRibbon);
+        
+        // Add finish zone overlay (90-95% of the ribbon)
+        this.createFinishZone(0.90, 0.95);
+        
+        this.createObstacles();
+        this.createFinishLine();
+    }
+
+    createFinishZone(startT, endT) {
+        const { ribbonWidth } = this.levelData;
+        const segments = 16;
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        
+        const finishGeometry = new THREE.BufferGeometry();
+        const vertices = [];
+        const uvs = [];
+        const indices = [];
+        
+        for (let i = 0; i <= segments; i++) {
+            const t = startT + (endT - startT) * (i / segments);
+            const curvePoint = this.spiralCurve.getPointAt(t);
+            const tangent = this.spiralCurve.getTangentAt(t).normalize();
+            
+            const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+            
+            const leftEdge = curvePoint.clone().addScaledVector(right, -ribbonWidth / 2);
+            const rightEdge = curvePoint.clone().addScaledVector(right, ribbonWidth / 2);
+            
+            vertices.push(leftEdge.x, leftEdge.y, leftEdge.z);
+            vertices.push(rightEdge.x, rightEdge.y, rightEdge.z);
+            
+            uvs.push(t * 10, 0);
+            uvs.push(t * 10, 1);
+            
+            if (i < segments) {
+                const base = i * 2;
+                indices.push(base, base + 1, base + 2);
+                indices.push(base + 1, base + 3, base + 2);
+            }
+        }
+        
+        finishGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        finishGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        finishGeometry.setIndex(indices);
+        finishGeometry.computeVertexNormals();
+        
+        // Create checkered texture
         const canvas = document.createElement('canvas');
         canvas.width = 64;
         canvas.height = 64;
         const ctx = canvas.getContext('2d');
         
-        // Draw checkered pattern for finish zone
         const tileSize = 16;
         for (let y = 0; y < 64; y += tileSize) {
             for (let x = 0; x < 64; x += tileSize) {
@@ -344,17 +438,7 @@ export class WormholeSpiral {
         const checkeredTexture = new THREE.CanvasTexture(canvas);
         checkeredTexture.wrapS = THREE.RepeatWrapping;
         checkeredTexture.wrapT = THREE.RepeatWrapping;
-        checkeredTexture.repeat.set(1, 4);
         
-        // Create main orange material
-        const mainMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xff6600,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.9
-        });
-        
-        // Create finish zone material
         const finishMaterial = new THREE.MeshBasicMaterial({ 
             map: checkeredTexture,
             side: THREE.DoubleSide,
@@ -362,27 +446,8 @@ export class WormholeSpiral {
             opacity: 1.0
         });
         
-        // Create continuous ribbon mesh
-        this.spiralRibbon = new THREE.Mesh(tubeGeometry, mainMaterial);
-        this.scene.add(this.spiralRibbon);
-        
-        // Add finish zone overlay (90-95% of the ribbon)
-        const finishTubeGeometry = new THREE.TubeGeometry(
-            new THREE.CatmullRomCurve3([
-                this.spiralCurve.getPointAt(0.90),
-                this.spiralCurve.getPointAt(0.95)
-            ]),
-            16,
-            ribbonWidth / 2,
-            1,
-            false
-        );
-        
-        const finishZone = new THREE.Mesh(finishTubeGeometry, finishMaterial);
+        const finishZone = new THREE.Mesh(finishGeometry, finishMaterial);
         this.scene.add(finishZone);
-        
-        this.createObstacles();
-        this.createFinishLine();
     }
 
     createFinishLine() {
