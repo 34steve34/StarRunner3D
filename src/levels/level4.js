@@ -370,7 +370,7 @@ export class WormholeSpiral {
             color: 0xff6600,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.9
+            opacity: 0.6
         });
         
         this.spiralRibbon = new THREE.Mesh(ribbonGeometry, mainMaterial);
@@ -443,7 +443,7 @@ export class WormholeSpiral {
             map: checkeredTexture,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 1.0
+            opacity: 0.6
         });
         
         const finishZone = new THREE.Mesh(finishGeometry, finishMaterial);
