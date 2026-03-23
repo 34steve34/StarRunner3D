@@ -461,7 +461,7 @@ export class WormholeSpiral {
         const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
         const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
         
-        // Create a banner across the finish
+        // Create a banner ACROSS the finish (perpendicular to track)
         const bannerGeometry = new THREE.PlaneGeometry(200, 30);
         const bannerMaterial = new THREE.MeshBasicMaterial({
             color: 0x0088ff,
@@ -474,7 +474,8 @@ export class WormholeSpiral {
         
         const banner = new THREE.Mesh(bannerGeometry, bannerMaterial);
         banner.position.copy(curvePoint).addScaledVector(ribbonUp, 15);
-        banner.lookAt(curvePoint.clone().add(tangent));
+        // Look across the ribbon, not along it
+        banner.lookAt(curvePoint.clone().add(ribbonRight));
         banner.rotateX(Math.PI / 2);
         
         this.spiralRibbon.add(banner);
@@ -549,7 +550,8 @@ export class WormholeSpiral {
         finishGroup.position.copy(curvePoint)
             .addScaledVector(ribbonUp, 35)
             .addScaledVector(ribbonRight, -letterWidth * 3);
-        finishGroup.lookAt(curvePoint.clone().add(tangent));
+        // Face the player coming down the track (opposite to tangent)
+        finishGroup.lookAt(curvePoint.clone().sub(tangent));
         
         this.spiralRibbon.add(finishGroup);
         
