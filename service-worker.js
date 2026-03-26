@@ -12,6 +12,7 @@ const urlsToCache = [
   './manifest.json',
   './icon192.png',
   './icon512.png',
+  './styles/game.css',
   './libs/three.module.js',
   './libs/loaders/GLTFLoader.js',
   './libs/utils/BufferGeometryUtils.js',
@@ -26,7 +27,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Caching app files');
+        console.log('Caching app files for offline use, version:', VERSION);
         // Cache files individually so one 404 doesn't break everything
         return Promise.all(
           urlsToCache.map(url => {
@@ -84,9 +85,13 @@ self.addEventListener('fetch', event => {
             });
           
           return response;
+        }).catch(() => {
+          // If both cache and network fail, return offline page for navigation requests
+          if (event.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
         });
       })
   );
-
 });
 
