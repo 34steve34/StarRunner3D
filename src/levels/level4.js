@@ -452,134 +452,67 @@ export class WormholeSpiral {
         this.scene.add(finishZone);
     }
 
-    createFinishLine() {
-        // Create a blue ribbon/finish line at 95% progress
-        const finishProgress = 0.95;
-        const curvePoint = this.spiralCurve.getPointAt(finishProgress);
-        const tangent = this.spiralCurve.getTangentAt(finishProgress).normalize();
-        const worldUp = new THREE.Vector3(0, 1, 0);
-        const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
-        const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
-        
-        // Create a banner ACROSS the finish (perpendicular to track)
-        const bannerGeometry = new THREE.PlaneGeometry(200, 30);
-        const bannerMaterial = new THREE.MeshBasicMaterial({
-            color: 0x0088ff,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.8,
-            emissive: 0x0088ff,
-            emissiveIntensity: 0.5
-        });
-        
-        const banner = new THREE.Mesh(bannerGeometry, bannerMaterial);
-        banner.position.copy(curvePoint).addScaledVector(ribbonUp, 15);
-        
-        // Set orientation using basis vectors: X=ribbonRight (across), Y=ribbonUp (up), Z=tangent (along track)
-        // This makes the banner face ACROSS the track
-        const bannerMatrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent);
-        banner.quaternion.setFromRotationMatrix(bannerMatrix);
-        
-        this.spiralRibbon.add(banner);
-        
-        // Add "FINISH" text using simple geometry
-        const finishGroup = new THREE.Group();
-        
-        // Create letters F I N I S H with simple boxes
-        const letterWidth = 15;
-        const letterHeight = 20;
-        const letterThickness = 3;
-        const letterSpacing = 5;
-        
-        const createLetter = (pattern, startX) => {
-            const letterGroup = new THREE.Group();
-            const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            
-            pattern.forEach(([x, y, w, h]) => {
-                const box = new THREE.Mesh(
-                    new THREE.BoxGeometry(w, h, letterThickness),
-                    material
-                );
-                box.position.set(startX + x + w/2, y + h/2, 0);
-                letterGroup.add(box);
-            });
-            
-            return letterGroup;
-        };
-        
-        // F: vertical + top horizontal + middle horizontal
-        const letterF = createLetter([
-            [0, 0, letterThickness, letterHeight],  // vertical
-            [0, letterHeight - letterThickness, letterWidth * 0.7, letterThickness],  // top
-            [0, letterHeight / 2, letterWidth * 0.5, letterThickness]  // middle
-        ], 0);
-        
-        // I: vertical
-        const letterI = createLetter([
-            [letterWidth / 2 - letterThickness / 2, 0, letterThickness, letterHeight]
-        ], letterWidth + letterSpacing);
-        
-        // N: vertical left + diagonal + vertical right
-        const letterN = createLetter([
-            [0, 0, letterThickness, letterHeight],  // left
-            [letterWidth - letterThickness, 0, letterThickness, letterHeight]  // right
-        ], letterWidth * 2 + letterSpacing * 2);
-        
-        // I: vertical
-        const letterI2 = createLetter([
-            [letterWidth / 2 - letterThickness / 2, 0, letterThickness, letterHeight]
-        ], letterWidth * 3 + letterSpacing * 3);
-        
-        // S: curves made of boxes
-        const letterS = createLetter([
-            [0, letterHeight - letterThickness, letterWidth, letterThickness],  // top
-            [0, 0, letterThickness, letterHeight],  // left
-            [letterWidth - letterThickness, 0, letterThickness, letterHeight],  // right
-            [0, 0, letterWidth, letterThickness],  // bottom
-            [letterWidth - letterThickness, letterHeight / 2, letterThickness, letterThickness]  // middle right
-        ], letterWidth * 4 + letterSpacing * 4);
-        
-        // H: vertical left + horizontal + vertical right
-        const letterH = createLetter([
-            [0, 0, letterThickness, letterHeight],  // left
-            [0, letterHeight / 2 - letterThickness / 2, letterWidth, letterThickness],  // middle
-            [letterWidth - letterThickness, 0, letterThickness, letterHeight]  // right
-        ], letterWidth * 5 + letterSpacing * 5);
-        
-        finishGroup.add(letterF, letterI, letterN, letterI2, letterS, letterH);
-        
-        // Position the text above and across the finish line
-        finishGroup.position.copy(curvePoint)
-            .addScaledVector(ribbonUp, 35)
-            .addScaledVector(ribbonRight, -letterWidth * 3);
-        
-        // Set orientation to face the player (opposite to tangent)
-        const textMatrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent.clone().negate());
-        finishGroup.quaternion.setFromRotationMatrix(textMatrix);
-        
-        this.spiralRibbon.add(finishGroup);
-        
-        // Add glowing finish zone markers
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            const marker = new THREE.Mesh(
-                new THREE.SphereGeometry(5, 8, 8),
-                new THREE.MeshBasicMaterial({
-                    color: 0x00ffff,
-                    emissive: 0x00ffff,
-                    emissiveIntensity: 0.8
-                })
-            );
-            
-            const markerPos = curvePoint.clone()
-                .addScaledVector(ribbonRight, Math.cos(angle) * 80)
-                .addScaledVector(ribbonUp, 5);
-            marker.position.copy(markerPos);
-            
-            this.spiralRibbon.add(marker);
-        }
-    }
+   createFinishLine() {
+    const finishProgress = 0.95;
+    const curvePoint = this.spiralCurve.getPointAt(finishProgress);
+    const tangent = this.spiralCurve.getTangentAt(finishProgress).normalize();
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const ribbonRight = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+    const ribbonUp = new THREE.Vector3().crossVectors(tangent, ribbonRight).normalize();
 
+    // 1. Create a Canvas to draw the text
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 1024; // High resolution
+    canvas.height = 256;
+
+    // Background (Optional: semi-transparent blue)
+    ctx.fillStyle = 'rgba(0, 136, 255, 0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Text Styling
+    ctx.font = 'Bold 120px Arial';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Draw the text
+    ctx.fillText('FINISH LINE', canvas.width / 2, canvas.height / 2);
+
+    // 2. Create Texture from Canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    
+    // 3. Create the Banner Mesh
+    const bannerGeometry = new THREE.PlaneGeometry(200, 50);
+    const bannerMaterial = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide
+    });
+
+    const banner = new THREE.Mesh(bannerGeometry, bannerMaterial);
+    
+    // Position it above the track
+    banner.position.copy(curvePoint).addScaledVector(ribbonUp, 30);
+
+    // Orient the banner to face the player
+    const bannerMatrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent);
+    banner.quaternion.setFromRotationMatrix(bannerMatrix);
+
+    this.scene.add(banner);
+
+    // 4. Optional: Add "Glow" markers
+    for (let i = -1; i <= 1; i += 2) {
+        const marker = new THREE.Mesh(
+            new THREE.SphereGeometry(8, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0x00ffff })
+        );
+        marker.position.copy(curvePoint)
+            .addScaledVector(ribbonRight, i * 100)
+            .addScaledVector(ribbonUp, 5);
+        this.scene.add(marker);
+    }
+}
     createObstacles() {
         const { obstacleCount, ribbonWidth, spiralTurns, cylinderRadius, cylinderHeight } = this.levelData;
         
