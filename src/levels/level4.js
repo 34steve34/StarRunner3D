@@ -757,87 +757,83 @@ export class WormholeSpiral {
     }
 
     updateDeath(ship, _camera, dt) {
-        this.deathTime += dt;
+    this.deathTime += dt;
 
-        // Drift ship outward from spiral axis — guard against zero vector at center
-        const axisPoint = new THREE.Vector3(0, ship.position.y, 0);
-        const driftDir = new THREE.Vector3().subVectors(ship.position, axisPoint);
-        if (driftDir.lengthSq() > 0.001) {
-            ship.position.addScaledVector(driftDir.normalize(), dt * 50);
-        }
-
-        const fadeProgress = Math.min(1, this.deathTime / 3);
-
-        if (this.deathTime >= 3) {
-            // Set back 10% instead of restarting from beginning
-            this.spiralProgress = Math.max(0.01, this.spiralProgress - 0.10);
-            this.forwardVelocity = 0;
-            this.respawnGrace = 90; // ~1.5 sec grace period — no lateral input
-
-            // Find a safe lateral position (away from obstacles)
-            this.lateralOffset = this.findSafeLateralPosition(this.spiralProgress);
-
-            const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
-            const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
-            const worldUp = new THREE.Vector3(0, 1, 0);
-            const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
-            const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
-
-            // Place ship on ribbon surface at safe lateral position
-            ship.position.copy(curvePoint)
-                .addScaledVector(right, this.lateralOffset)
-                .addScaledVector(up, 1);
-
-            const matrix = new THREE.Matrix4().makeBasis(right, up, tangent);
-            ship.quaternion.setFromRotationMatrix(matrix);
-
-            this.phase = 'spiral';
-            this.isDying = false;
-            this.deathTime = 0;
-            console.log(`🔄 Respawning 10% back at progress ${(this.spiralProgress * 100).toFixed(1)}%...`);
-        }
-
-        return { customControls: true, fadeToBlack: fadeProgress };
+    // Visual feedback: Drift ship away from the track
+    const axisPoint = new THREE.Vector3(0, ship.position.y, 0);
+    const driftDir = new THREE.Vector3().subVectors(ship.position, axisPoint);
+    if (driftDir.lengthSq() > 0.001) {
+        ship.position.addScaledVector(driftDir.normalize(), dt * 40);
     }
+
+    const fadeProgress = Math.min(1, this.deathTime / 2);
+
+    if (this.deathTime >= 2) {
+        // 1. Roll back progress (10% is good, gives reaction time)
+        this.spiralProgress = Math.max(0.01, this.spiralProgress - 0.10);
+        
+        // 2. STABILIZE: Kill all momentum so they start from a standstill
+        this.forwardVelocity = 0;
+        this.lateralOffset = this.findSafeLateralPosition(this.spiralProgress);
+        
+        // 3. Grace period: Increase to 2 seconds (120 frames) so they can orient
+        this.respawnGrace = 120; 
+
+        const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
+        const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
+        const worldUp = new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
+        const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
+
+        ship.position.copy(curvePoint)
+            .addScaledVector(right, this.lateralOffset)
+            .addScaledVector(up, 2); // Slight hover on respawn
+
+        const matrix = new THREE.Matrix4().makeBasis(right, up, tangent);
+        ship.quaternion.setFromRotationMatrix(matrix);
+
+        this.phase = 'spiral';
+        this.isDying = false;
+        this.deathTime = 0;
+    }
+
+    return { customControls: true, fadeToBlack: fadeProgress };
+}
+
+
 
     findSafeLateralPosition(progress) {
-        const { ribbonWidth } = this.levelData;
-        const maxOffset = ribbonWidth / 2 - 5; // Stay 5 units away from edge
+    const { ribbonWidth } = this.levelData;
+    // Keep player away from the "deadly" edges (inner 60% of track only)
+    const safeZoneWidth = ribbonWidth * 0.6; 
+    const halfSafe = safeZoneWidth / 2;
+    
+    let bestOffset = 0;
+    let maxClearance = -1;
+
+    // Scan the ribbon at the respawn point
+    const samples = 15;
+    for (let i = 0; i <= samples; i++) {
+        const testOffset = -halfSafe + (i / samples) * safeZoneWidth;
         
-        // First, check if center is clear (can fly straight through)
-        if (!this.isNearObstacle(progress, 0) && !this.isNearObstacle(progress + 0.02, 0, 25)) {
-            return 0;
+        // Measure distance to nearest obstacle at THIS progress point
+        const clearance = this.getMinObstacleDistance(progress, testOffset);
+        
+        // We want the spot with the MOST room around it
+        if (clearance > maxClearance) {
+            maxClearance = clearance;
+            bestOffset = testOffset;
         }
-        
-        // Find the position furthest from any obstacle, also checking ahead
-        let bestOffset = 0;
-        let bestScore = -1;
-        
-        // Sample many positions across the ribbon width
-        const samples = 20;
-        for (let i = 0; i <= samples; i++) {
-            const offset = -maxOffset + (2 * maxOffset * i / samples);
-            
-            // Check current position AND look ahead 2% progress
-            const currentDist = this.getMinObstacleDistance(progress, offset);
-            const aheadDist = this.getMinObstacleDistance(progress + 0.02, offset);
-            
-            // Score based on minimum of current and ahead (worst case)
-            const minDist = Math.min(currentDist, aheadDist);
-            
-            if (minDist > bestScore) {
-                bestScore = minDist;
-                bestOffset = offset;
-            }
-            
-            // If we find a position with good clearance both now and ahead, use it
-            if (minDist > 35) {
-                return offset;
-            }
-        }
-        
-        return bestOffset;
     }
+
+    // If even the "best" spot is tight (less than 30 units), 
+    // we move the respawn point back another 2% until it's safe.
+    if (maxClearance < 30 && progress > 0.05) {
+        return this.findSafeLateralPosition(progress - 0.02);
+    }
+
+    return bestOffset;
+}
 
     getMinObstacleDistance(progress, lateralOffset) {
         const curvePoint = this.spiralCurve.getPointAt(progress);
