@@ -806,10 +806,17 @@ export class WormholeSpiral {
         return false;
     }
 
-    checkObstacleCollisions(ship) {
+ checkObstacleCollisions(ship) {
         for (const obstacle of this.obstacles) {
-            if (obstacle.material.opacity < 1.0) continue; // Ignore ghosts
+            // 1. Ignore ghosts
+            if (obstacle.material.opacity < 1.0) continue; 
             
+            // 2. THE FIX: Ignore obstacles on different loops of the spiral!
+            // If the obstacle is more than ~2% of the total track length away from us 
+            // forward or backward, it is mathematically impossible to hit it right now.
+            if (Math.abs(obstacle.userData.t - this.spiralProgress) > 0.02) continue;
+
+            // 3. Only now do we check the 3D distance
             if (ship.position.distanceTo(obstacle.position) < 20) {
                 return true; 
             }
