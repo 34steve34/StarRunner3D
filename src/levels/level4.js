@@ -493,8 +493,12 @@ export class WormholeSpiral {
         // Position it above the track
         banner.position.copy(curvePoint).addScaledVector(ribbonUp, 30);
 
-        // Orient the banner to face the player
-        const bannerMatrix = new THREE.Matrix4().makeBasis(ribbonRight, ribbonUp, tangent);
+        // Orient the banner to face the player (flip 180 degrees)
+        // We negate the tangent (Z) and right (X) vectors to turn it around
+        const reverseTangent = tangent.clone().multiplyScalar(-1);
+        const reverseRight = ribbonRight.clone().multiplyScalar(-1);
+        
+        const bannerMatrix = new THREE.Matrix4().makeBasis(reverseRight, ribbonUp, reverseTangent);
         banner.quaternion.setFromRotationMatrix(bannerMatrix);
 
         this.scene.add(banner);
