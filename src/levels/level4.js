@@ -276,6 +276,10 @@ export class WormholeSpiral {
             
             // Create spiral ribbon
             this.createSpiralRibbon();
+			// This ensures they are only created ONCE when the level starts, 
+	        // not every time the player respawns.
+            if (this.obstacles.length === 0) {
+            this.createObstacles();
 
             this.spiralProgress = 0.01;
             this.forwardVelocity = 0;
@@ -380,7 +384,7 @@ export class WormholeSpiral {
         // Add finish zone overlay (90-95% of the ribbon)
         this.createFinishZone(0.90, 0.95);
         
-        this.createObstacles();
+
         this.createFinishLine();
     }
 
@@ -756,39 +760,38 @@ export class WormholeSpiral {
         return { customControls: true };
     }
 
-    updateDeath(ship, _camera, dt) {
+updateDeath(ship, _camera, dt) {
     this.deathTime += dt;
-
-    // Visual feedback: Drift ship away from the track
-    const axisPoint = new THREE.Vector3(0, ship.position.y, 0);
-    const driftDir = new THREE.Vector3().subVectors(ship.position, axisPoint);
-    if (driftDir.lengthSq() > 0.001) {
-        ship.position.addScaledVector(driftDir.normalize(), dt * 40);
-    }
-
     const fadeProgress = Math.min(1, this.deathTime / 2);
 
     if (this.deathTime >= 2) {
-        // 1. Roll back progress (10% is good, gives reaction time)
+        // 1. Roll back progress 10%
         this.spiralProgress = Math.max(0.01, this.spiralProgress - 0.10);
         
-        // 2. STABILIZE: Kill all momentum so they start from a standstill
+        // 2. Reset momentum and center the ship
         this.forwardVelocity = 0;
-        this.lateralOffset = this.findSafeLateralPosition(this.spiralProgress);
+        this.lateralOffset = 0; 
         
-        // 3. Grace period: Increase to 2 seconds (120 frames) so they can orient
+        // 3. Set Grace Period (2 seconds at 60fps)
         this.respawnGrace = 120; 
 
+        // 4. Ghost nearby obstacles
+        this.obstacles.forEach(obs => {
+            // Check if obstacle is within a "reach" of the respawn point
+            if (ship.position.distanceTo(obs.position) < 300) {
+                obs.material.transparent = true;
+                obs.material.opacity = 0.3;
+            }
+        });
+
+        // Reposition ship
         const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
         const tangent = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
         const worldUp = new THREE.Vector3(0, 1, 0);
         const right = new THREE.Vector3().crossVectors(worldUp, tangent).normalize();
         const up = new THREE.Vector3().crossVectors(tangent, right).normalize();
 
-        ship.position.copy(curvePoint)
-            .addScaledVector(right, this.lateralOffset)
-            .addScaledVector(up, 2); // Slight hover on respawn
-
+        ship.position.copy(curvePoint).addScaledVector(up, 1);
         const matrix = new THREE.Matrix4().makeBasis(right, up, tangent);
         ship.quaternion.setFromRotationMatrix(matrix);
 
@@ -804,31 +807,35 @@ export class WormholeSpiral {
 
     findSafeLateralPosition(progress) {
     const { ribbonWidth } = this.levelData;
-    // Keep player away from the "deadly" edges (inner 60% of track only)
-    const safeZoneWidth = ribbonWidth * 0.6; 
-    const halfSafe = safeZoneWidth / 2;
+    const maxOffset = ribbonWidth / 2 - 10; // 10 unit buffer from edges
     
     let bestOffset = 0;
-    let maxClearance = -1;
-
-    // Scan the ribbon at the respawn point
-    const samples = 15;
+    let bestScore = -1;
+    
+    // 1. Scan lateral positions
+    const samples = 25;
     for (let i = 0; i <= samples; i++) {
-        const testOffset = -halfSafe + (i / samples) * safeZoneWidth;
+        const offset = -maxOffset + (2 * maxOffset * i / samples);
         
-        // Measure distance to nearest obstacle at THIS progress point
-        const clearance = this.getMinObstacleDistance(progress, testOffset);
+        // 2. Check a continuous "Safety Tunnel" in front of the ship
+        // We check 5 points ahead (approx 5% of the track)
+        let minClearanceInTunnel = Infinity;
+        for (let step = 0; step <= 5; step++) {
+            const lookAhead = progress + (step * 0.01); 
+            const dist = this.getMinObstacleDistance(lookAhead, offset);
+            if (dist < minClearanceInTunnel) minClearanceInTunnel = dist;
+        }
         
-        // We want the spot with the MOST room around it
-        if (clearance > maxClearance) {
-            maxClearance = clearance;
-            bestOffset = testOffset;
+        if (minClearanceInTunnel > bestScore) {
+            bestScore = minClearanceInTunnel;
+            bestOffset = offset;
         }
     }
 
-    // If even the "best" spot is tight (less than 30 units), 
-    // we move the respawn point back another 2% until it's safe.
-    if (maxClearance < 30 && progress > 0.05) {
+    // 3. HARD REQUIREMENT: If the best spot still has an obstacle 
+    // within 50 units, move the respawn point back further.
+    if (bestScore < 50 && progress > 0.05) {
+        console.log("No safe lane found, pushing respawn further back...");
         return this.findSafeLateralPosition(progress - 0.02);
     }
 
@@ -875,23 +882,14 @@ export class WormholeSpiral {
         return false;
     }
 
-    checkObstacleCollisions(ship) {
-        for (const obstacle of this.obstacles) {
+checkObstacleCollisions(ship) {
+    for (const obstacle of this.obstacles) {
+        // Only check collision if the obstacle is fully solid
+        if (obstacle.material.opacity >= 1.0) {
             if (ship.position.distanceTo(obstacle.position) < 20) {
-                return true; // hit
+                return true; 
             }
         }
-        return false;
     }
-
-    cleanup(scene) {
-        if (this.spiralRibbon) scene.remove(this.spiralRibbon);
-        if (this.wormholeStructure) scene.remove(this.wormholeStructure);
-        
-        this.obstacles.forEach(obs => scene.remove(obs));
-        this.blueStars.forEach(star => scene.remove(star));
-        
-        this.obstacles = [];
-        this.blueStars = [];
-    }
+    return false;
 }
