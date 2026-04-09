@@ -440,26 +440,34 @@ export class WormholeSpiral {
         return { customControls: true };
     }
 
-    updateDeath(ship, _camera, dt) {
+updateDeath(ship, _camera, dt) {
         this.deathTime += dt;
         if (this.deathTime >= 2) {
+            // 1. Roll back 10%
             this.spiralProgress = Math.max(0.01, this.spiralProgress - 0.10);
             this.forwardVelocity = 0;
             this.lateralOffset = 0;
-            this.respawnGrace = 120;
+            this.respawnGrace = 120; // 2 seconds at 60fps
 
+            // 2. Calculate the NEW respawn position FIRST
+            const cp = this.spiralCurve.getPointAt(this.spiralProgress);
+            const tg = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
+            const rt = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), tg).normalize();
+            const up = new THREE.Vector3().crossVectors(tg, rt).normalize();
+            
+            const newShipPos = cp.clone().addScaledVector(up, 2);
+
+            // 3. NOW turn nearby obstacles into ghosts based on the NEW position
             this.obstacles.forEach(obs => {
-                if (ship.position.distanceTo(obs.position) < 400) {
+                // Increased distance to 600 to ensure a solid 2-second safe runway
+                if (newShipPos.distanceTo(obs.position) < 600) {
                     obs.material.transparent = true;
                     obs.material.opacity = 0.3;
                 }
             });
 
-            const cp = this.spiralCurve.getPointAt(this.spiralProgress);
-            const tg = this.spiralCurve.getTangentAt(this.spiralProgress).normalize();
-            const rt = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), tg).normalize();
-            const up = new THREE.Vector3().crossVectors(tg, rt).normalize();
-            ship.position.copy(cp).addScaledVector(up, 2);
+            // 4. Finally, move the ship and reset rotation
+            ship.position.copy(newShipPos);
             ship.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(rt, up, tg));
 
             this.phase = 'spiral';
@@ -467,15 +475,6 @@ export class WormholeSpiral {
             this.deathTime = 0;
         }
         return { customControls: true, fadeToBlack: Math.min(1, this.deathTime / 2) };
-    }
-
-    isNearObstacle(t, offset, threshold) {
-        const cp = this.spiralCurve.getPointAt(t);
-        const tg = this.spiralCurve.getTangentAt(t).normalize();
-        const rt = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), tg).normalize();
-        const up = new THREE.Vector3().crossVectors(tg, rt).normalize();
-        const pos = cp.clone().addScaledVector(rt, offset).addScaledVector(up, 1);
-        return this.obstacles.some(obs => pos.distanceTo(obs.position) < threshold);
     }
 
     checkObstacleCollisions(ship) {
