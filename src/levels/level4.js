@@ -661,7 +661,7 @@ export class WormholeSpiral {
         // Ghost recovery
         this.obstacles.forEach(obs => {
             if (obs.material.opacity < 1.0) {
-                obs.material.opacity += dt * 0.35;
+                obs.material.opacity += dt * 0.24;
                 if (obs.material.opacity >= 1.0) {
                     obs.material.opacity = 1.0;
                     obs.material.transparent = false;
@@ -754,8 +754,8 @@ export class WormholeSpiral {
             this.forwardVelocity = 0;
             this.lateralOffset = 0; 
             
-            // 3. Grace period (120 frames)
-            this.respawnGrace = 120; 
+            // 3. Grace period (210 frames)
+            this.respawnGrace = 210; 
 
             // Calculate exact respawn position
             const curvePoint = this.spiralCurve.getPointAt(this.spiralProgress);
@@ -770,7 +770,7 @@ export class WormholeSpiral {
             this.obstacles.forEach(obs => {
                 if (newShipPos.distanceTo(obs.position) < 600) {
                     obs.material.transparent = true;
-                    obs.material.opacity = 0.3;
+                    obs.material.opacity = 0.15;
                 }
             });
 
